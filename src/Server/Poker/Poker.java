@@ -524,10 +524,12 @@ public final class Poker
         player.Role = newPlayer.Role;
         player.Chips = newPlayer.Chips;
         player.Place = getFreePlaceId();
-        if(Poker.Table.State != GameState.Waiting) {
+        if(Poker.Table.State != GameState.Waiting)
+        {
             Poker.Table.PlayersInQueue.put(client, player);
             System.out.println(player + " added to queue");
-        } else {
+        } else
+        {
             System.out.println(player + " added to players");
             Poker.Table.Players.put(client,player);
         }
