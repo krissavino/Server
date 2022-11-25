@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Main-Class: Server.Server
+Class-Path: C:\Users\Bigljuse\Java\Poker\Server\src\Server\Server.java
+
