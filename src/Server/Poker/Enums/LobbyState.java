@@ -1,6 +1,6 @@
 package Server.Poker.Enums;
 
-public enum GameState
+public enum LobbyState
 {
     Waiting,
     Started,

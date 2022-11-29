@@ -1,6 +1,6 @@
 package Server.Interfaces;
 
-import Server.Client;
+import Server.ClientSocket;
 import Server.Commands.Enums.CommandEnum;
 import Server.Commands.Interfaces.ICommand;
 
@@ -12,9 +12,9 @@ public interface IServer
 
     void stop();
 
-    ArrayList<Client> getClients();
+    ArrayList<ClientSocket> getClients();
 
-    void disconnectClient(Client client);
+    void disconnectClient(ClientSocket clientSocket);
 
     void executeCommand(CommandEnum commandEnum);
 

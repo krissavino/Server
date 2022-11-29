@@ -1,5 +1,6 @@
 package Server.Poker.Models;
 
+import Server.ClientSocket;
 import Server.Poker.Cards.Models.CardModel;
 import Server.Poker.Enums.MoveType;
 import Server.Poker.Enums.Role;
@@ -9,6 +10,8 @@ import java.util.List;
 
 public class PlayerModel
 {
+    public transient ClientSocket Socket = null;
+
     public String NickName = "Unknown";
     public MoveType LastMove = MoveType.None;
     public Role Role = Server.Poker.Enums.Role.Player;
@@ -16,5 +19,9 @@ public class PlayerModel
     public int Place = 0;
     public int Bet = -1;
     public int Score = 0;
+
+    public boolean IsDisconnected = false;
+
+    public boolean IsInQueue = true;
     public List<CardModel> Cards = new ArrayList<>();
 }

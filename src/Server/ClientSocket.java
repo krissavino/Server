@@ -8,13 +8,13 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
-public final class Client implements IClient
+public final class ClientSocket implements IClient
 {
     private Socket Socket;
     private BufferedReader BufferedReader;
     private PrintWriter BufferedWriter;
 
-    Client(Socket socket)
+    ClientSocket(Socket socket)
     {
         this.Socket = socket;
 

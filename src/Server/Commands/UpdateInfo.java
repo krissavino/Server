@@ -1,7 +1,7 @@
 package Server.Commands;
 
 import Json.JsonConverter;
-import Server.Client;
+import Server.ClientSocket;
 import Server.Commands.Interfaces.ICommand;
 import Server.Commands.Models.SimpleCommandModel;
 import Server.Poker.Models.ClientTableModel;
@@ -10,7 +10,7 @@ import Server.Poker.PokerContainer;
 public class UpdateInfo extends SimpleCommandModel implements ICommand
 {
     protected ClientTableModel tableModel = new ClientTableModel();
-    protected transient Client Receiver = null;
+    protected transient ClientSocket Receiver = null;
 
     public UpdateInfo()
     {
@@ -22,7 +22,7 @@ public class UpdateInfo extends SimpleCommandModel implements ICommand
         return Name;
     }
 
-    public Client getReceiver()
+    public ClientSocket getReceiver()
     {
         return Receiver;
     }
@@ -32,8 +32,8 @@ public class UpdateInfo extends SimpleCommandModel implements ICommand
         return tableModel;
     }
 
-    public void setReceiver(Client client) {
-        Receiver = client;
+    public void setReceiver(ClientSocket clientSocket) {
+        Receiver = clientSocket;
     }
 
     public void setObjectToSend(Object object)
@@ -51,9 +51,7 @@ public class UpdateInfo extends SimpleCommandModel implements ICommand
         else
             System.out.println(String.format("Отправитель %s, команда: %s",player.NickName ,Name));
 
-
-        var table = poker.getTable();
-        tableModel = table;
+        tableModel = poker.getClientTable();;
 
         var jsonMessage = JsonConverter.toJson(this);
         Receiver.sendMessage(jsonMessage);
@@ -62,26 +60,16 @@ public class UpdateInfo extends SimpleCommandModel implements ICommand
     public void send()
     {
         var poker = PokerContainer.getPoker();
-        var clients = poker.getPlayers().keySet();
-        var table = poker.getTable();
+        var players = poker.getPlayers();
 
-        ClientTableModel clientTable = new ClientTableModel();
-        clientTable.Pot             = table.Pot            ;
-        clientTable.Bet             = table.Bet            ;
-        clientTable.PlayerIndexTurn = table.PlayerIndexTurn;
-        clientTable.TimerTime       = table.TimerTime      ;
-        clientTable.Winner          = table.Winner         ;
-        clientTable.Stage           = table.Stage          ;
-        clientTable.State           = table.State          ;
-        clientTable.CardsOnTable    = table.CardsOnTable   ;
-        clientTable.Players         = table.Players        ;
+        ClientTableModel clientTable = poker.getClientTable();
 
         tableModel = clientTable;
 
-        for(var client : clients)
+        for(var player : players)
         {
             var jsonMessage = JsonConverter.toJson(this);
-            client.sendMessage(jsonMessage);
+            player.Socket.sendMessage(jsonMessage);
         }
     }
 }
