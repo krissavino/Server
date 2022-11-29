@@ -1,183 +1,212 @@
 package Server.Poker;
 
-import Server.Client;
+import Server.ClientSocket;
 import Server.Commands.Interfaces.ICommand;
 import Server.Commands.RegisterPokerPlayer;
 import Server.Commands.UpdateInfo;
 import Server.Poker.Cards.Cards;
 import Server.Poker.Cards.Models.CardModel;
 import Server.Poker.Enums.GameStage;
-import Server.Poker.Enums.GameState;
+import Server.Poker.Enums.LobbyState;
 import Server.Poker.Enums.MoveType;
 import Server.Poker.Enums.Role;
-import Server.Poker.Interfaces.IPoker;
+import Server.Poker.Interfaces.IQueue;
 import Server.Poker.Models.ClientTableModel;
 import Server.Poker.Models.PlayerModel;
 import Server.Poker.Models.PokerModel;
+import Server.Poker.Models.TableModel;
 import Server.ServerContainer;
 
 import java.util.*;
 
-public final class Poker
+public final class Poker implements IQueue
 {
     private PokerModel Poker = new PokerModel();
     private Timer GameTimer = new Timer();
+    private int MinPlayersCountNeededToStartGame = 2;
 
     public boolean startGame()
     {
-        var clientsCount = ServerContainer.getServer().getClients().size();
-
-        if(clientsCount < 2) {
-            Poker.Table.State = GameState.Waiting;
-            new UpdateInfo().send();
-            return false;
-        }
-        acceptPlayersFromQueue();
-        resetBets();
-        setPlaces();
-        setRoles();
         Poker.Table.Winner = null;
         Poker.Table.CardsForDrop = Cards.generateCards();
-        System.out.println();
+
+        PlacePlayersFromQueue();
+        setRoles();
+        resetBets();
+
         handOutCardsToPlayers(2);
         placeCardsOnTable();
-        Poker.Table.Stage = GameStage.Preflop;
-        Poker.Table.State = GameState.Started;
+        Poker.Table.GameStage = GameStage.Preflop;
+        Poker.Table.LobbyState = LobbyState.Started;
 
         Poker.Table.CanBigBlindBet = true;
 
-        restartGameTimer(6000);
+        restartGameTimer(10000);
         new UpdateInfo().send();
 
         return true;
     }
 
-    public void acceptPlayersFromQueue() {
-        int counter = 5 - Poker.Table.Players.size();
-        for(var key : Poker.Table.PlayersInQueue.keySet()) {
-            if(counter == 0) break;
-            Poker.Table.Players.put(key, Poker.Table.PlayersInQueue.get(key));
-
-            ICommand registerPokerPlayer = new RegisterPokerPlayer();
-            registerPokerPlayer.setReceiver(key);
-            registerPokerPlayer.setObjectToSend(Poker.Table.PlayersInQueue.get(key));
-            registerPokerPlayer.send();
-
-            Poker.Table.PlayersInQueue.remove(key);
-            counter--;
-        }
-
-    }
-
-    public void setPlaces() {
-        Poker.Table.Places.clear();
-        var places = Poker.Table.Places;
-        var players = Poker.Table.Players;
-        for(PlayerModel player : players.values()) {
-            places.put(player.Place, player);
-        }
-        for(int j = 0; j < 4; j++)
-            for(int i = 0; i < places.size(); i++) {
-                if(places.get(i) == null) {
-                    if(places.get(i+1) != null) {
-                        places.put(i, places.get(i + 1));
-                        places.remove(i+1);
-                    }
-                    if(places.get(i) != null)
-                        places.get(i).Place = i;
-                }
-            }
-        for(PlayerModel place : places.values()) {
-            for(PlayerModel player : players.values()) {
-                if(place != null)
-                    if(place.NickName.equals(player.NickName)) {
-                        player.Place = place.Place;
-                    }
-            }
-        }
-    }
-
-    public void setRoles() {
-        for(PlayerModel player : Poker.Table.Players.values()) {
-            player.Role = Role.Player;
-            if(player.Place == (Poker.Table.PlayerIndexTurn + 2) % Poker.Table.Players.size()) {
-                player.Role = Role.BigBlind;
-            }
-            if(player.Place == (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.Players.size()) {
-                player.Role = Role.SmallBlind;
-            }
-            if(player.Place == Poker.Table.PlayerIndexTurn) {
-                player.Role = Role.Dealer;
-            }
-            Poker.Table.Places.put(player.Place, player);
-            System.out.println(player + " " + player.Role + " " + player.Place);
-        }
-
-    }
-
-    public void setRoles2()
+    public void PlacePlayersFromQueue()
     {
-        var dealer = Poker.Table.SpecialPlayers.get(Role.Dealer);
-        if(dealer == null)
+        var playersFromQueue = Poker.Table.PlayersInQueue;
+        var placePlayerMap = Poker.Table.PlacePlayerMap.values();
+
+        for (var player : playersFromQueue)
         {
-            int counter = Role.Dealer.ordinal();
-            for(PlayerModel player : Poker.Table.Players.values()) {
-                player.Place = counter;
-                if(counter >= Role.Player.ordinal()) {
-                    counter = Role.Player.ordinal();
-                } else {
-                    Poker.Table.SpecialPlayers.put(Role.values()[counter], player);
-                }
-                player.Role = Role.values()[counter];
-                Poker.Table.Places.put(counter, player);
-                counter++;
+            var freePlaceId =  getFreePlaceId();
+
+            if(freePlaceId == -1)
+            {
+                System.out.println("No free places");
+                return;
             }
-            return;
-        }
-        //if(Poker.Table.Players.size() > Poker.Table.Places.size())
 
-        var dealerIndex = Poker.Table.SpecialPlayers.get(Role.Dealer).Place;
-        var smallBlindIndex = Poker.Table.SpecialPlayers.get(Role.SmallBlind).Place;
-        for(PlayerModel player : Poker.Table.Players.values()) {
-            Poker.Table.Places.put(player.Place, player);
-        }
-        if(Poker.Table.Players.size() > 2) {
-            int bigBlindIndex = (smallBlindIndex + 1) % Poker.Table.Players.size();
-            var nexBigBlindIndex = (bigBlindIndex + 1) % Poker.Table.Players.size();
-            Poker.Table.Places.get(dealerIndex).Role = Role.Player;
-            Poker.Table.Places.get(smallBlindIndex).Role = Role.Dealer;
-            Poker.Table.Places.get(bigBlindIndex).Role = Role.SmallBlind;
-            Poker.Table.Places.get(nexBigBlindIndex).Role = Role.BigBlind;
-        } else {
-            Poker.Table.Places.get(smallBlindIndex).Role = Role.Dealer;
-            Poker.Table.Places.get(dealerIndex).Role = Role.SmallBlind;
-        }
-        for(PlayerModel place : Poker.Table.Places.values()) {
-            Poker.Table.SpecialPlayers.put(place.Role, place);
+            player.Place = freePlaceId;
+            player.IsInQueue = false;
+            Poker.Table.PlacePlayerMap.put(freePlaceId, player);
+            System.out.println(player.NickName + " took place with number " + freePlaceId);
         }
 
-        Poker.Table.PlayerIndexTurn = Poker.Table.SpecialPlayers.get(Role.Dealer).Place;
+        for (var player : placePlayerMap)
+        {
+            var isPlayerInQueue = playersFromQueue.contains(player);
+
+            if(isPlayerInQueue == false)
+                continue;
+
+            System.out.println(player.NickName + " was removed from queue");
+            Poker.Table.PlayersInQueue.remove(player);
+        }
     }
 
-    public void setPlayerBet(Client client, int bet) {
-        var player = getPlayer(client);
+    private void resetBets()
+    {
+        var players = Poker.Table.PlacePlayerMap.values();
+
+        for(var player : players)
+        {
+            player.Bet = -1;
+            player.LastMove = MoveType.None;
+        }
+
+        for(var player : players)
+        {
+            player.Bet = -1;
+            player.LastMove = MoveType.None;
+        }
+    }
+
+    public void setRoles()
+    {
+        var playersByTable = Poker.Table.PlacePlayerMap.values();
+
+        for(int counter = 0; counter < playersByTable.size(); counter++)
+        {
+            var playerFromPlace = Poker.Table.PlacePlayerMap.get(counter);
+            var roleId = (counter + Poker.GamesFinished) % playersByTable.size();
+
+            playerFromPlace.Role = Role.values()[roleId];
+        }
+    }
+
+    public void setPlayerBet(ClientSocket clientSocket, int bet)
+    {
+        var player = getPlayer(clientSocket);
         player.Bet = bet;
         new UpdateInfo().send();
     }
 
-    public void removePlayer(Client client)
+    public void removePlayer(ClientSocket clientSocket)
     {
-        Poker.Table.Places.remove(Poker.Table.Players.get(client).Place);
-        Poker.Table.Players.remove(client);
+        var isPlayerRemoved = removePlayerFromQueue(clientSocket);
+
+        if(isPlayerRemoved == true)
+            return;
+
+        removePlayerFromPlacePlayerMap(clientSocket);
+
+        if(Poker.Table.LobbyState == LobbyState.Ended)
+            return;
+
+        if(Poker.Table.PlacePlayerMap.size() == 0)
+            endGame();
     }
 
-    public boolean checkForEndGame() {
-        if(Poker.Table.State == GameState.Ended) return true;
-        if(isEndGame() == true) {
-            System.out.println("end game");
+    private boolean removePlayerFromQueue(ClientSocket clientSocket)
+    {
+        var playersFromQueue = Poker.Table.PlayersInQueue;
+        PlayerModel playerToRemove = null;
+
+        for(var player : playersFromQueue)
+        {
+            if (player.Socket == clientSocket)
+            {
+                playerToRemove = player;
+                break;
+            }
+        }
+
+        if(playerToRemove == null)
+            return false;
+
+        System.out.println("Player <" + playerToRemove.NickName +">  was removed from Poker queue");
+        Poker.Table.PlayersInQueue.remove(playerToRemove);
+        return true;
+    }
+
+    private boolean removePlayerFromPlacePlayerMap(ClientSocket clientSocket)
+    {
+        var playersFromPlaces = Poker.Table.PlacePlayerMap.entrySet();
+        var playerToRemovePlaceId = 0;
+        PlayerModel playerToRemove = null;
+
+        for(var placePlayer : playersFromPlaces)
+        {
+            var playerSoket = placePlayer.getValue().Socket;
+
+            if (playerSoket == clientSocket)
+            {
+                playerToRemovePlaceId = placePlayer.getKey();
+                playerToRemove = placePlayer.getValue();
+                break;
+            }
+        }
+
+        if(playerToRemove == null)
+            return false;
+
+
+            playerToRemove.IsDisconnected = true;
+        return true;
+    }
+
+    public void removeDisconnectedPlayers()
+    {
+        var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.entrySet();
+        var disconnectedPlayersPlaces = new ArrayList<Integer>();
+
+        for(var placePlayer : playersFromPlacePlayerMap)
+            if(placePlayer.getValue().IsDisconnected == true)
+            {
+                disconnectedPlayersPlaces.add(placePlayer.getKey());
+                System.out.println("Player <" + placePlayer.getValue().NickName +">  was removed from Poker game");
+            }
+
+        for(var placeId : disconnectedPlayersPlaces)
+            Poker.Table.PlacePlayerMap.remove(placeId);
+    }
+
+    public boolean checkForEndGame()
+    {
+        if(Poker.Table.LobbyState == LobbyState.Ended) return true;
+
+        if(isEndGame() == true)
+        {
             endGame();
             return true;
         }
+
         return false;
     }
 
@@ -199,26 +228,107 @@ public final class Poker
             moveCall(player);
 
         player.LastMove = moveType;
-        System.out.println("        move:" + player + " " + moveType);
-        if(checkForEndGame() == true)
+        System.out.println("        " + "Player <" + player.NickName + "> moved: " + moveType);
+
+        if(isNextStage() == true)
+        {
+            changeGameStage();
+            System.out.println("GameStage changed: " + Poker.Table.GameStage);
+        }
+        else if(checkForEndGame() == true)
             return;
 
-        if(isNextStage() == true) {
-            System.out.println("NEXT GAME STAGE??????");
-            changeGameStage();
-        }
-        Poker.Table.PlayerIndexTurn = (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.Players.size();
+        Poker.Table.PlayerIndexTurn = (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.PlacePlayerMap.size();
+        restartGameTimer(10000);
         new UpdateInfo().send();
-        restartGameTimer(6000);
     }
+
+    public boolean isNextStage()
+    {
+        if(Poker.Table.GameStage == GameStage.River)
+            return false;
+
+        boolean nextGameStage = isAllPlayersChecked();
+
+        if (nextGameStage == true)
+            return true;
+
+        nextGameStage = isAllPlayersCalled();
+
+        if (nextGameStage == true)
+            return true;
+
+        var currentPlayer = Poker.Table.PlacePlayerMap.get(Poker.Table.PlayerIndexTurn);
+
+        if (currentPlayer.Role == Role.BigBlind &&
+                Poker.Table.GameStage == GameStage.Preflop &&
+                currentPlayer.LastMove == MoveType.Check)
+        {
+            Poker.Table.CanBigBlindBet = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void changeGameStage()
+    {
+        Poker.Table.GameStage = Poker.Table.GameStage.next();
+
+        int howMuchCardsToOpen = Poker.Table.GameStage.ordinal() + 2;
+
+        for (int counter = 0; counter < howMuchCardsToOpen; counter++)
+            Poker.Table.CardsOnTable.get(counter).setOpened(true);
+
+        var players = Poker.Table.PlacePlayerMap.values();
+
+        for (var player : players)
+        {
+            player.Bet = -1;
+            player.LastMove = MoveType.None;
+        }
+
+        Poker.Table.Bet = 0;
+    }
+
+    private boolean isAllPlayersChecked()
+    {
+        var players = Poker.Table.PlacePlayerMap.values();
+        var nextGameStage = true;
+
+        for (var player : players)
+        {
+            // IF SOMEONE CALLED AFTER BIG BLIND BET
+            if (player.Bet == Poker.Table.Bet) ;
+            else nextGameStage = false;
+        }
+
+        return nextGameStage;
+    }
+
+    private boolean isAllPlayersCalled()
+    {
+        var players = Poker.Table.PlacePlayerMap.values();
+        var nextGameStage = true;
+
+        // IF SOMEONE CALLED AFTER BIG BLIND BET
+        for (var player : players)
+        {
+            if (player.LastMove == MoveType.Call) ;
+            else nextGameStage = false;
+        }
+
+        return nextGameStage;
+    }
+
 
     private boolean isEndGame()
     {
         var isAllPlayersEndMoves = isAllPlayersCalled() || isAllPlayersChecked();
 
-        if(Poker.Table.Stage == GameStage.River &&
-                isAllPlayersEndMoves)
+        if(Poker.Table.GameStage == GameStage.River && isAllPlayersEndMoves)
             return true;
+
         if(checkForFoldWinner() != null)
             return true;
 
@@ -227,9 +337,16 @@ public final class Poker
 
     private void endGame()
     {
+        GameTimer.cancel();
+
+        Poker.GamesFinished += 1;
+        Poker.Table.LobbyState = LobbyState.Ended;
+        System.out.println("Poker game ended");
+
+        removeDisconnectedPlayers();
         setWinner();
-        Poker.Table.State = GameState.Ended;
-        restartGameTimer(4000);
+        restartGameTimer(10000);
+
         new UpdateInfo().send();
     }
 
@@ -244,21 +361,17 @@ public final class Poker
 
         Poker.Table.Pot += moveBet;
         Poker.Table.Bet = moveBet;
-        player.LastMove = MoveType.Bet;
     }
 
     private void moveFold(PlayerModel player)
     {
         player.Bet = -1;
-        player.LastMove = MoveType.Fold;
     }
 
     public void moveCheck(PlayerModel player)
     {
         if(player.Bet == -1)
             player.Bet = 0;
-
-        player.LastMove = MoveType.Check;
     }
 
     private void moveCall(PlayerModel player)
@@ -275,7 +388,6 @@ public final class Poker
         }
 
         player.Bet = Poker.Table.Bet;
-        player.LastMove = MoveType.Call;
     }
 
     private void moveRaise(PlayerModel player, int moveBet)
@@ -293,102 +405,25 @@ public final class Poker
             Poker.Table.Bet += moveBet;
 
         Poker.Table.Pot += moveBet;
-        player.LastMove = MoveType.Raise;
-    }
-
-    public boolean isNextStage()
-    {
-        boolean nextGameStage = isAllPlayersChecked();
-
-        if (nextGameStage == true)
-            return true;
-
-        nextGameStage = isAllPlayersCalled();
-
-        if (nextGameStage == true)
-            return true;
-
-        var currentPlayer = Poker.Table.Places.get(Poker.Table.PlayerIndexTurn);
-
-        if (currentPlayer.Role == Role.BigBlind &&
-                Poker.Table.Stage == GameStage.Preflop &&
-                currentPlayer.LastMove == MoveType.Check)
-        {
-            Poker.Table.CanBigBlindBet = false;
-            return true;
-        }
-
-        return false;
-    }
-
-    private void changeGameStage()
-    {
-        Poker.Table.Stage = Poker.Table.Stage.next();
-
-        int howMuchCardsToOpen = Poker.Table.Stage.ordinal() + 2;
-
-        for (int counter = 0; counter < howMuchCardsToOpen; counter++)
-            Poker.Table.CardsOnTable.get(counter).setOpened(true);
-
-        var players = Poker.Table.Places.values();
-
-        for (var player : players)
-        {
-            player.Bet = -1;
-            player.LastMove = MoveType.None;
-        }
-
-
-        Poker.Table.Bet = 0;
-    }
-
-    private boolean isAllPlayersChecked()
-    {
-        return false;
-        /*var players = Poker.Table.Places.values();
-        var nextGameStage = true;
-
-        for (var player : players)
-        { // IF SOMEONE CALLED AFTER BIG BLIND BET
-            if (player.Bet == Poker.Table.Bet) ;
-            else nextGameStage = false;
-        }
-
-        return nextGameStage;*/
-    }
-
-    private boolean isAllPlayersCalled()
-    {
-        var players = Poker.Table.Places.values();
-        var nextGameStage = true;
-
-        // IF SOMEONE CALLED AFTER BIG BLIND BET
-        for (var player : players)
-        {
-            if (player.LastMove == MoveType.Call) ;
-            else nextGameStage = false;
-        }
-
-        return nextGameStage;
     }
 
     public PlayerModel checkForFoldWinner()
     {
-        System.out.println("        FOLD WINNER:");
         int foldCounter = 0;
-        var players = Poker.Table.Places.values();
+        var players = Poker.Table.PlacePlayerMap.values();
         var winner = new PlayerModel();
-        for (var player : players) {
-            System.out.println("        " + player + " " + player.LastMove);
-            if (player.LastMove == MoveType.Fold) {
+
+        for (var player : players)
+        {
+            if (player.LastMove == MoveType.Fold)
                 foldCounter++;
-            } else {
+            else
                 winner = player;
-            }
         }
 
         if(foldCounter == players.size()-1)
         {
+            System.out.println("FOLD WINNER: " + winner.NickName);
             return winner;
         }
 
@@ -397,19 +432,22 @@ public final class Poker
 
     public boolean setWinner()
     {
-        var players = Poker.Table.Places.values();
+        var players = Poker.Table.PlacePlayerMap.values();
+        PlayerModel winner = null;
 
         if(players.size() == 0)
             return false;
 
         if(players.size() == 1)
         {
-            Poker.Table.Winner = (PlayerModel) players.toArray()[0];
+            winner = (PlayerModel) players.toArray()[0];
+            Poker.Table.Winner = winner;
             return true;
         }
 
-        var winner = checkForFoldWinner();
-        if(winner != null) {
+        winner = checkForFoldWinner();
+        if(winner != null)
+        {
             Poker.Table.Winner = winner;
             return true;
         }
@@ -427,16 +465,73 @@ public final class Poker
         return true;
     }
 
-    public PlayerModel getPlayer(Client client)
+    public PlayerModel getPlayer(String nickName)
     {
-        var player = Poker.Table.Players.get(client);
+        var player = getPlayerFromQueue(nickName);
+
+        if(player == null)
+            return getPlayerFromPlacePlayerMap(nickName);
 
         return player;
     }
 
+    private PlayerModel getPlayerFromQueue(String nickName)
+    {
+        var playersFromQueue = Poker.Table.PlayersInQueue;
+
+        for (var player : playersFromQueue)
+            if(player.NickName == nickName)
+                return player;
+
+        return null;
+    }
+
+    private PlayerModel getPlayerFromPlacePlayerMap(String nickName)
+    {
+        var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.values();
+
+        for (var player : playersFromPlacePlayerMap)
+            if(player.NickName == nickName)
+                return player;
+
+        return null;
+    }
+
+    public PlayerModel getPlayer(ClientSocket clientSocket)
+    {
+        var player = getPlayerFromQueue(clientSocket);
+
+        if(player == null)
+            return getPlayerFromPlacePlayerMap(clientSocket);
+
+        return player;
+    }
+
+    private PlayerModel getPlayerFromQueue(ClientSocket clientSocket)
+    {
+        var playersFromQueue = Poker.Table.PlayersInQueue;
+
+        for (var player : playersFromQueue)
+            if(player.Socket == clientSocket)
+                return player;
+
+        return null;
+    }
+
+    private PlayerModel getPlayerFromPlacePlayerMap(ClientSocket clientSocket)
+    {
+        var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.values();
+
+        for (var player : playersFromPlacePlayerMap)
+            if(player.Socket == clientSocket)
+                return player;
+
+        return null;
+    }
+
     private void сountPlayersScore()
     {
-        var players = Poker.Table.Players.values();
+        var players = Poker.Table.PlacePlayerMap.values();
 
         for(var player : players)
             сountPlayerScore(player);
@@ -481,7 +576,7 @@ public final class Poker
 
     private PlayerModel findFirstWinner()
     {
-        var players = Poker.Table.Players.values();
+        var players = Poker.Table.PlacePlayerMap.values();
         PlayerModel winner = null;
 
         for(PlayerModel player : players)
@@ -498,7 +593,7 @@ public final class Poker
 
     private ArrayList<PlayerModel> findSameWinners(PlayerModel winner)
     {
-        var players = Poker.Table.Players.values();
+        var players = Poker.Table.PlacePlayerMap.values();
         var winners = new ArrayList<PlayerModel>();
 
         for(var player : players)
@@ -510,81 +605,117 @@ public final class Poker
         return winners;
     }
 
-    public boolean authorizePlayer(Client client, PlayerModel newPlayer)
+    public boolean authorizePlayer(ClientSocket clientSocket, PlayerModel unauthorizedPlayer)
     {
-        if(isPlayerExist(newPlayer) == true)
+        var nickName = unauthorizedPlayer.NickName;
+
+        if(isPlayerExist(clientSocket) == true)
         {
             var server = ServerContainer.getServer();
-            server.disconnectClient(client);
+            server.disconnectClient(clientSocket);
             return false;
         }
 
         PlayerModel player = new PlayerModel();
-        player.NickName = newPlayer.NickName;
-        player.Role = newPlayer.Role;
-        player.Chips = newPlayer.Chips;
-        player.Place = getFreePlaceId();
-        if(Poker.Table.State != GameState.Waiting)
-        {
-            Poker.Table.PlayersInQueue.put(client, player);
-            System.out.println(player + " added to queue");
-        } else
-        {
-            System.out.println(player + " added to players");
-            Poker.Table.Players.put(client,player);
-        }
+        player.Socket = clientSocket;
+        player.NickName = unauthorizedPlayer.NickName;
+        player.Chips = unauthorizedPlayer.Chips;
+        player.IsInQueue = true;
+
+        addPlayerToQueue(player);
 
         ICommand registerPokerPlayer = new RegisterPokerPlayer();
-        registerPokerPlayer.setReceiver(client);
+        registerPokerPlayer.setReceiver(clientSocket);
         registerPokerPlayer.setObjectToSend(player);
         registerPokerPlayer.send();
 
-        var playersCount = Poker.Table.Players.size();
-
-        if(playersCount > 1 && Poker.Table.State == GameState.Waiting)
-            startGame();
-        else
-            new UpdateInfo().send();
+        playerAuthorized(player.NickName);
 
         return true;
     }
 
-    private int getFreePlaceId()
+    private boolean isPlayerExist(ClientSocket clientSocket)
     {
-        int maxPlace = -1;
-        for(var player : Poker.Table.Players.values()) {
-            if(player.Place > maxPlace)
-                maxPlace = player.Place;
-        }
-        return (maxPlace + 1) % 5;
+        var player = getPlayer(clientSocket);
+
+        if(player == null)
+            return false;
+
+        return true;
     }
 
-    private boolean isPlayerExist(PlayerModel newPlayer)
+    public void addPlayerToQueue(PlayerModel player)
     {
-        var tablePlayers = Poker.Table.Players.values();
+        var nickName = player.NickName;
 
-        for (var player : tablePlayers)
-        {
-            if(player.NickName.equals(newPlayer.NickName))
-                return true;
-        }
+        Poker.Table.PlayersInQueue.add(player);
+        System.out.println(nickName + " added to queue");
+    }
+
+    private void playerAuthorized(String nickName)
+    {
+        System.out.println(nickName + " authorized");
+
+        if(isGameCanBeStarted() == true)
+            startGame();
+
+        new UpdateInfo().send();
+    }
+
+    private boolean isGameCanBeStarted()
+    {
+        removeDisconnectedPlayers();
+
+        var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.size();
+        var playersFromQueueCount = Poker.Table.PlayersInQueue.size();
+
+        var playersCount = playersFromPlacePlayerMap + playersFromQueueCount;
+
+        if(playersCount >= MinPlayersCountNeededToStartGame)
+           if(Poker.Table.LobbyState == LobbyState.Waiting || Poker.Table.LobbyState == LobbyState.Ended)
+               return true;
 
         return false;
     }
 
+    private int getFreePlaceId()
+    {
+        var places = Poker.Table.PlacePlayerMap;
+        var freePlaces = 5 - places.size();
+
+        if(freePlaces == 0)
+            return -1;
+
+        for (int counter = 0; counter < 5; counter++)
+        {
+            var playerFromPlace = places.get(counter);
+
+            if(playerFromPlace == null)
+                return counter;
+        }
+
+        return -1;
+    }
+
     private void handOutCardsToPlayers(int timesToGiveCard)
     {
+        var players = Poker.Table.PlacePlayerMap.values();
+
         if(timesToGiveCard < 2)
             timesToGiveCard = 2;
 
-        for(var player : Poker.Table.Players.values())
+        for(var player : players)
         {
             player.Cards.clear();
+
             for(int counter = 0; counter < timesToGiveCard; counter++)
             {
                 if(Poker.Table.CardsForDrop.size() == 0)
                     return;
-                givePlayerCard(player, Poker.Table.CardsForDrop.get(0));
+
+                var card = Poker.Table.CardsForDrop.get(0);
+                givePlayerCard(player, card);
+
                 Poker.Table.CardsForDrop.remove(0);
             }
         }
@@ -597,7 +728,9 @@ public final class Poker
         {
             if(Poker.Table.CardsForDrop.size() == 0)
                 return;
-            Poker.Table.CardsOnTable.add(Poker.Table.CardsForDrop.get(0));
+
+            var card = Poker.Table.CardsForDrop.get(0);
+            Poker.Table.CardsOnTable.add(card);
             Poker.Table.CardsForDrop.remove(0);
         }
     }
@@ -609,66 +742,87 @@ public final class Poker
             player.Cards.add(cardModel);
             return true;
         }
+
         return false;
     }
 
-    public ClientTableModel getTable()
+    public TableModel getTable()
+    {
+        return Poker.Table;
+    }
+
+    public ClientTableModel getClientTable()
     {
         ClientTableModel clientTable = new ClientTableModel();
-        clientTable.Pot             = Poker.Table.Pot            ;
-        clientTable.Bet             = Poker.Table.Bet            ;
-        clientTable.PlayerIndexTurn = Poker.Table.PlayerIndexTurn;
-        clientTable.TimerTime       = Poker.Table.TimerTime      ;
-        clientTable.Winner          = Poker.Table.Winner         ;
-        clientTable.Stage           = Poker.Table.Stage          ;
-        clientTable.State           = Poker.Table.State          ;
-        clientTable.CardsOnTable    = Poker.Table.CardsOnTable   ;
-        clientTable.Players         = Poker.Table.Places         ;
+        clientTable.Pot             = Poker.Table.Pot                  ;
+        clientTable.Bet             = Poker.Table.Bet                  ;
+        clientTable.PlayerIndexTurn = Poker.Table.PlayerIndexTurn      ;
+        clientTable.TimerStartTime  = Poker.Table.TimerStartTime;
+        clientTable.Winner          = Poker.Table.Winner               ;
+        clientTable.Stage           = Poker.Table.GameStage;
+        clientTable.State           = Poker.Table.LobbyState;
+        clientTable.CardsOnTable    = Poker.Table.CardsOnTable         ;
+        clientTable.PlacePlayerMap  = Poker.Table.PlacePlayerMap;
+        clientTable.PlayersInQueue  = Poker.Table.PlayersInQueue.size();
 
         return clientTable;
     }
 
-    public Map<Client, PlayerModel> getPlayers()
+    public ArrayList<PlayerModel> getPlayers()
     {
-        return Poker.Table.Players;
-    }
+        var playersFromQueue = Poker.Table.PlayersInQueue;
+        var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.values();
+        var players = new ArrayList<PlayerModel>();
 
-    private void resetBets()
-    {
-        for(var player : Poker.Table.Players.values()) {
-            player.Bet = -1;
-            player.LastMove = MoveType.None;
-        }
-        for(var player : Poker.Table.Places.values()) {
-            player.Bet = -1;
-            player.LastMove = MoveType.None;
-        }
+        for (var player : playersFromQueue)
+            players.add(player);
+
+        for (var player : playersFromPlacePlayerMap)
+            players.add(player);
+
+        return players;
     }
 
     public void restartGameTimer(int delay)
     {
         GameTimer.cancel();
+        Poker.Table.TimerStartTime = delay;
         GameTimer = new Timer();
-        System.out.println("Timer started: " + delay + " (delay) " + Poker.Table.State + " " + Poker.Table.Winner);
+
+        var text = String.format("Timer started: %s (delay), LobbyState: %s, GameStage: %s", delay, Poker.Table.LobbyState, Poker.Table.GameStage);
+        System.out.println(text);
+
         GameTimer.schedule(new TimerTask()
         {
             @Override
             public void run() {TimerElapsed();}
         }, delay);
-        Poker.Table.TimerTime = delay;
     }
 
     private void TimerElapsed()
     {
-        System.out.println("Timer elapsed: ");
-        if(Poker.Table.Winner != null) {
-            startGame();
+        System.out.println("\nTimer elapsed");
+
+        if(Poker.Table.LobbyState == LobbyState.Ended)
+        {
+            if (isGameCanBeStarted() == true)
+                startGame();
+            else
+                System.out.println("Game can't be started, current is less then 2 players");
             return;
         }
-        var player = Poker.Table.Places.get(Poker.Table.PlayerIndexTurn);
-        System.out.println("player " + player + " are going to move.");
 
-        if(player != null)
-            move(player, MoveType.Fold, 0);
+        if(Poker.Table.LobbyState == LobbyState.Started)
+        {
+            var player = Poker.Table.PlacePlayerMap.get(Poker.Table.PlayerIndexTurn);
+
+            if (player == null)
+            {
+                System.out.println("Player that should make move left from the Poker game");
+                move(new PlayerModel(), MoveType.Check, 0);
+            }
+            else
+                move(player, MoveType.Fold, 0);
+        }
     }
 }

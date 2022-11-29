@@ -1,6 +1,6 @@
 package Server.Commands;
 
-import Server.Client;
+import Server.ClientSocket;
 import Server.Commands.Interfaces.ICommand;
 import Server.Commands.Models.SimpleCommandModel;
 import Server.Poker.PokerContainer;
@@ -8,7 +8,7 @@ import Server.ServerContainer;
 
 public class Stop extends SimpleCommandModel implements ICommand
 {
-    protected transient Client Receiver = null;
+    protected transient ClientSocket Receiver = null;
     public Stop()
     {
         Name = this.getClass().getSimpleName();
@@ -19,8 +19,8 @@ public class Stop extends SimpleCommandModel implements ICommand
         return Name;
     }
 
-    public void setReceiver(Client client) {
-        Receiver = client;
+    public void setReceiver(ClientSocket clientSocket) {
+        Receiver = clientSocket;
     }
 
     public void setObjectToSend(Object object) {
@@ -31,7 +31,7 @@ public class Stop extends SimpleCommandModel implements ICommand
         return null;
     }
 
-    public Client getReceiver() {
+    public ClientSocket getReceiver() {
         return Receiver;
     }
 

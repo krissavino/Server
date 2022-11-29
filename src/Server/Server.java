@@ -15,7 +15,6 @@ import com.google.gson.reflect.TypeToken;
 
 
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.util.ArrayList;
@@ -81,7 +80,7 @@ public final class Server implements IServer
         }
     }
 
-    public void disconnectClient(Client client)
+    public void disconnectClient(ClientSocket client)
     {
         var clientSocket = client.getSocket();
 
@@ -104,9 +103,9 @@ public final class Server implements IServer
         }
     }
 
-    public ArrayList<Client> getClients()
+    public ArrayList<ClientSocket> getClients()
     {
-        var clients = new ArrayList<Client>();
+        var clients = new ArrayList<ClientSocket>();
 
         for (var client : Server.Clients.entrySet())
             clients.add(client.getValue());
@@ -121,7 +120,7 @@ public final class Server implements IServer
             try
             {
                 var clientSocket = Server.Socket.accept();
-                var newClient = new Client(clientSocket);
+                var newClient = new ClientSocket(clientSocket);
                 Server.Clients.put(clientSocket,newClient);
 
                 new Thread(()-> listenForMessages(newClient, Server.ThreadController)).start();
@@ -138,16 +137,16 @@ public final class Server implements IServer
         }
     }
 
-    private void listenForMessages(Client client, IThreadController threadController)
+    private void listenForMessages(ClientSocket clientSocket, IThreadController threadController)
     {
         String message;
         try
         {
             while (!threadController.isCancellationRequested())
             {
-                message =  client.getBufferedReader().readLine();
+                message =  clientSocket.getBufferedReader().readLine();
                 var command = tryGetCommand(message);
-                command.setReceiver(client);
+                command.setReceiver(clientSocket);
                 executeCommand(command);
             }
         }
@@ -160,7 +159,7 @@ public final class Server implements IServer
 
             try
             {
-                playerDisconnected(client);
+                playerDisconnected(clientSocket);
             }
             finally
             {
@@ -169,17 +168,17 @@ public final class Server implements IServer
         }
     }
 
-    private void playerDisconnected(Client client)
+    private void playerDisconnected(ClientSocket clientSocket)
     {
-        var player = PokerContainer.getPoker().getPlayer(client);
+        var player = PokerContainer.getPoker().getPlayer(clientSocket);
 
         if(player == null)
             player = new PlayerModel();
 
-        System.out.println( String.format("Player %s disconnected",player.NickName));
+        System.out.println( String.format("Player <%s> disconnected",player.NickName));
 
-        PokerContainer.getPoker().removePlayer(client);
-        Server.Clients.remove(client.getSocket());
+        PokerContainer.getPoker().removePlayer(clientSocket);
+        Server.Clients.remove(clientSocket.getSocket());
         PokerContainer.getPoker().setWinner();
     }
 
@@ -201,7 +200,7 @@ public final class Server implements IServer
                 continue;
 
             command = gson.fromJson(jsonText, Server.Commands.get(commandEnum).getClass());
-            System.out.println("ИМЯ: " + command.getName());
+            System.out.println("Command received: " + command.getName());
             break;
         }
 

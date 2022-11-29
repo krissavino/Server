@@ -1,6 +1,6 @@
 package Server.Models;
 
-import Server.Client;
+import Server.ClientSocket;
 import Server.Commands.*;
 import Server.Commands.Enums.CommandEnum;
 import Server.Commands.Interfaces.ICommand;
@@ -18,7 +18,7 @@ public final class ServerModel
     public int MaxClients = 2;
     public boolean IsServerStarted = false;
     public ServerSocket Socket;
-    public Map<Socket, Client> Clients = new HashMap(4);
+    public Map<Socket, ClientSocket> Clients = new HashMap(4);
     public Map<CommandEnum, ICommand> Commands = new HashMap();
     public IThreadController ThreadController = new ThreadController();
 

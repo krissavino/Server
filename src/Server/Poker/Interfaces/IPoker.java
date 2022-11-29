@@ -1,6 +1,6 @@
 package Server.Poker.Interfaces;
 
-import Server.Client;
+import Server.ClientSocket;
 import Server.Poker.Enums.MoveType;
 import Server.Poker.Models.ClientTableModel;
 import Server.Poker.Models.PlayerModel;
@@ -11,18 +11,18 @@ public interface IPoker
 {
     ClientTableModel getTable();
 
-    Map<Client, PlayerModel> getPlayers();
+    Map<ClientSocket, PlayerModel> getPlayers();
 
-    PlayerModel getPlayer(Client client);
+    PlayerModel getPlayer(ClientSocket clientSocket);
 
     void move(PlayerModel player, MoveType moveType, int moveBet);
 
-    boolean authorizePlayer(Client client, PlayerModel newPlayer);
+    boolean authorizePlayer(ClientSocket clientSocket, PlayerModel newPlayer);
 
-    void removePlayer(Client client);
+    void removePlayer(ClientSocket clientSocket);
 
     void startGameTimer(int delay);
-    void setPlayerBet(Client client, int bet);
+    void setPlayerBet(ClientSocket clientSocket, int bet);
 
     boolean setWinner();
 }

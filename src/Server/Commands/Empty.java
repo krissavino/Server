@@ -1,13 +1,13 @@
 package Server.Commands;
 
-import Server.Client;
+import Server.ClientSocket;
 import Server.Commands.Interfaces.ICommand;
 import Server.Commands.Models.SimpleCommandModel;
 import Server.Poker.PokerContainer;
 
 public class Empty extends SimpleCommandModel implements ICommand
 {
-    protected transient Client Receiver = null;
+    protected transient ClientSocket Receiver = null;
 
     public Empty()
     {
@@ -19,12 +19,12 @@ public class Empty extends SimpleCommandModel implements ICommand
         return Name;
     }
 
-    public Client getReceiver() {
+    public ClientSocket getReceiver() {
         return Receiver;
     }
 
-    public void setReceiver(Client client) {
-        Receiver = client;
+    public void setReceiver(ClientSocket clientSocket) {
+        Receiver = clientSocket;
     }
 
     public void setObjectToSend(Object object)

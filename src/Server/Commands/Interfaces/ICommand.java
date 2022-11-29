@@ -1,16 +1,16 @@
 package Server.Commands.Interfaces;
 
-import Server.Client;
+import Server.ClientSocket;
 
 public interface ICommand
 {
     String getName();
 
-    Client getReceiver();
+    ClientSocket getReceiver();
 
     Object getReceivedObject();
 
-    void setReceiver(Client client);
+    void setReceiver(ClientSocket clientSocket);
 
     void setObjectToSend(Object object);
 
