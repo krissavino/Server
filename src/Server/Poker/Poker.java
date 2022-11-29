@@ -38,7 +38,6 @@ public final class Poker
         setRoles();
         Poker.Table.Winner = null;
         Poker.Table.CardsForDrop = Cards.generateCards();
-        System.out.println();
         handOutCardsToPlayers(2);
         placeCardsOnTable();
         Poker.Table.Stage = GameStage.Preflop;
@@ -66,7 +65,6 @@ public final class Poker
             Poker.Table.PlayersInQueue.remove(key);
             counter--;
         }
-
     }
 
     public void setPlaces() {
@@ -110,7 +108,6 @@ public final class Poker
                 player.Role = Role.Dealer;
             }
             Poker.Table.Places.put(player.Place, player);
-            System.out.println(player + " " + player.Role + " " + player.Place);
         }
 
     }
@@ -174,7 +171,6 @@ public final class Poker
     public boolean checkForEndGame() {
         if(Poker.Table.State == GameState.Ended) return true;
         if(isEndGame() == true) {
-            System.out.println("end game");
             endGame();
             return true;
         }
@@ -199,15 +195,13 @@ public final class Poker
             moveCall(player);
 
         player.LastMove = moveType;
-        System.out.println("        move:" + player + " " + moveType);
+        Poker.Table.PlayerIndexTurn = (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.Players.size();
         if(checkForEndGame() == true)
             return;
 
         if(isNextStage() == true) {
-            System.out.println("NEXT GAME STAGE??????");
             changeGameStage();
         }
-        Poker.Table.PlayerIndexTurn = (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.Players.size();
         new UpdateInfo().send();
         restartGameTimer(6000);
     }
@@ -374,12 +368,10 @@ public final class Poker
 
     public PlayerModel checkForFoldWinner()
     {
-        System.out.println("        FOLD WINNER:");
         int foldCounter = 0;
         var players = Poker.Table.Places.values();
         var winner = new PlayerModel();
         for (var player : players) {
-            System.out.println("        " + player + " " + player.LastMove);
             if (player.LastMove == MoveType.Fold) {
                 foldCounter++;
             } else {
@@ -669,6 +661,6 @@ public final class Poker
         System.out.println("player " + player + " are going to move.");
 
         if(player != null)
-            move(player, MoveType.Fold, 0);
+            move(player, MoveType.Call, 0);
     }
 }
