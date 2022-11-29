@@ -12,7 +12,6 @@ public final class TableModel
     public int Bet = 0;
     public int PlayerIndexTurn = 0;
     public int TimerStartTime = 0;
-    public boolean CanBigBlindBet = true;
     public PlayerModel Winner = null;
     public GameStage GameStage = Server.Poker.Enums.GameStage.Preflop;
     public LobbyState LobbyState = Server.Poker.Enums.LobbyState.Waiting;

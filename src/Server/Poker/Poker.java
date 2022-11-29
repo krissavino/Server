@@ -23,6 +23,7 @@ public final class Poker implements IQueue
 {
     private PokerModel Poker = new PokerModel();
     private Timer GameTimer = new Timer();
+    private Timer WaitingTimer = new Timer();
     private int MinPlayersCountNeededToStartGame = 2;
 
     public boolean startGame()
@@ -38,13 +39,25 @@ public final class Poker implements IQueue
         placeCardsOnTable();
         Poker.Table.GameStage = GameStage.Preflop;
         Poker.Table.LobbyState = LobbyState.Started;
-
-        Poker.Table.CanBigBlindBet = true;
+        setFirstTurn(Role.SmallBlind);
 
         restartGameTimer(10000);
         new UpdateInfo().send();
 
+        smallBlindFirstBet();
+        bigBlindFirstBet();
+
         return true;
+    }
+
+    private void setFirstTurn(Role role)
+    {
+        var player = getPlayer(Role.SmallBlind);
+
+        if(player == null)
+            return;
+
+        Poker.Table.PlayerIndexTurn = player.Place;
     }
 
     public void PlacePlayersFromQueue()
@@ -111,13 +124,6 @@ public final class Poker implements IQueue
 
             playerFromPlace.Role = Role.values()[roleId];
         }
-    }
-
-    public void setPlayerBet(ClientSocket clientSocket, int bet)
-    {
-        var player = getPlayer(clientSocket);
-        player.Bet = bet;
-        new UpdateInfo().send();
     }
 
     public void removePlayer(ClientSocket clientSocket)
@@ -242,6 +248,7 @@ public final class Poker implements IQueue
             return;
 
         Poker.Table.PlayerIndexTurn = (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.PlacePlayerMap.size();
+
         restartGameTimer(10000);
         new UpdateInfo().send();
     }
@@ -261,17 +268,26 @@ public final class Poker implements IQueue
         if (nextGameStage == true)
             return true;
 
-        var currentPlayer = Poker.Table.PlacePlayerMap.get(Poker.Table.PlayerIndexTurn);
-
-        if (currentPlayer.Role == Role.BigBlind &&
-                Poker.Table.GameStage == GameStage.Preflop &&
-                currentPlayer.LastMove == MoveType.Check)
-        {
-            Poker.Table.CanBigBlindBet = false;
-            return true;
-        }
-
         return false;
+    }
+
+    private void bigBlindFirstBet()
+    {
+        var playerBigBlind = getPlayer(Role.BigBlind);
+
+        if(playerBigBlind == null)
+            return;
+
+        var playerSmallBlind = getPlayer(Role.SmallBlind);
+
+        move(playerBigBlind, MoveType.Bet, playerSmallBlind.Bet*2);
+    }
+
+    private void smallBlindFirstBet()
+    {
+        var playerSmallBlind = getPlayer(Role.SmallBlind);
+
+        move(playerSmallBlind, MoveType.Bet, 5);
     }
 
     private void changeGameStage()
@@ -468,6 +484,20 @@ public final class Poker implements IQueue
         return true;
     }
 
+    public PlayerModel getPlayer(Role playerRole)
+    {
+        var placePlayerMap = Poker.Table.PlacePlayerMap.values();
+
+        for (var player : placePlayerMap)
+        {
+
+            if(player.Role == playerRole)
+                return player;
+        }
+
+        return null;
+    }
+
     public PlayerModel getPlayer(String nickName)
     {
         var player = getPlayerFromQueue(nickName);
@@ -660,7 +690,7 @@ public final class Poker implements IQueue
         System.out.println(nickName + " authorized");
 
         if(isGameCanBeStarted() == true)
-            startGame();
+            restartWaitingTimer(6000);
 
         new UpdateInfo().send();
     }
@@ -786,6 +816,27 @@ public final class Poker implements IQueue
         return players;
     }
 
+    public void restartWaitingTimer(int delay)
+    {
+        WaitingTimer.cancel();
+        WaitingTimer = new Timer();
+
+        var text = String.format("WaitingTimer started: %s (delay), LobbyState: %s, GameStage: %s", delay, Poker.Table.LobbyState, Poker.Table.GameStage);
+        System.out.println(text);
+
+        GameTimer.schedule(new TimerTask()
+        {
+            @Override
+            public void run() {
+                WaitingTimerElapsed();}
+        }, delay);
+    }
+
+    private void WaitingTimerElapsed()
+    {
+        startGame();
+    }
+
     public void restartGameTimer(int delay)
     {
         GameTimer.cancel();
@@ -798,11 +849,12 @@ public final class Poker implements IQueue
         GameTimer.schedule(new TimerTask()
         {
             @Override
-            public void run() {TimerElapsed();}
+            public void run() {
+                GameTimerElapsed();}
         }, delay);
     }
 
-    private void TimerElapsed()
+    private void GameTimerElapsed()
     {
         System.out.println("\nTimer elapsed");
 
