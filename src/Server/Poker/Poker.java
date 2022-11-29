@@ -105,6 +105,10 @@ public final class Poker implements IQueue
         {
             var playerFromPlace = Poker.Table.PlacePlayerMap.get(counter);
             var roleId = (counter + Poker.GamesFinished) % playersByTable.size();
+
+            if(roleId > 3)
+                roleId = 3;
+
             playerFromPlace.Role = Role.values()[roleId];
         }
     }
@@ -236,8 +240,8 @@ public final class Poker implements IQueue
         }
         else if(checkForEndGame() == true)
             return;
-        Poker.Table.PlayerIndexTurn = (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.PlacePlayerMap.size();
 
+        Poker.Table.PlayerIndexTurn = (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.PlacePlayerMap.size();
         restartGameTimer(10000);
         new UpdateInfo().send();
     }
