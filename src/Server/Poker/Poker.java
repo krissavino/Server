@@ -106,6 +106,9 @@ public final class Poker implements IQueue
             var playerFromPlace = Poker.Table.PlacePlayerMap.get(counter);
             var roleId = (counter + Poker.GamesFinished) % playersByTable.size();
 
+            if(roleId > 3)
+                roleId = 3;
+
             playerFromPlace.Role = Role.values()[roleId];
         }
     }
