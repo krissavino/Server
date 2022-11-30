@@ -27,18 +27,13 @@ public final class Server implements IServer
 
     private static Lock _locker = new ReentrantLock();
 
-    public static void main(String[] args)
-    {
-        ServerContainer.getServer().start();
-    }
-
     public Server(int maxClients, int port)
     {
         Server = new ServerModel(maxClients);
         Server.Port = port;
     }
 
-    public void start()
+    public void start(InetAddress inetAddress)
     {
         if(Server.IsServerStarted == true)
         {
@@ -50,14 +45,14 @@ public final class Server implements IServer
 
         try
         {
-            InetAddress localHostAddress = InetAddress.getLocalHost();
-            Server.Socket = new ServerSocket(Server.Port, Server.MaxClients,localHostAddress);
+            Server.Socket = new ServerSocket(Server.Port, Server.MaxClients,inetAddress);
 
             var threadServer = new Thread(()->waitForClient());
             threadServer.start();
             Server.IsServerStarted = true;
 
-            System.out.println("Server started: " + localHostAddress.getHostAddress() + ", port: " + Server.Port);
+            var text = String.format("Server started: %s, port: %s", inetAddress.getHostAddress(), Server.Port);
+            System.out.println(text);
         }
         catch (Exception e)
         {

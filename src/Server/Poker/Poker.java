@@ -391,6 +391,9 @@ public final class Poker implements IQueue
     {
         if(player.Bet == -1)
             player.Bet = 0;
+
+        if(Poker.Table.Bet > player.Bet)
+            moveCall(player);
     }
 
     private void moveCall(PlayerModel player)
@@ -877,7 +880,8 @@ public final class Poker implements IQueue
                 move(new PlayerModel(), MoveType.Check, 0);
             }
             else
-                move(player, MoveType.Fold, 0);
+                move(player, MoveType.Check, 0);
+                //move(player, MoveType.Fold, 0);
         }
     }
 }
