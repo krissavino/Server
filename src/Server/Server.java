@@ -141,7 +141,7 @@ public final class Server implements IServer
             {
                 message =  clientSocket.getBufferedReader().readLine();
                 var command = tryGetCommand(message);
-                command.setReceiver(clientSocket);
+                command.setClientToSendCommand(clientSocket);
                 executeCommand(command);
             }
         }
@@ -195,7 +195,7 @@ public final class Server implements IServer
                 continue;
 
             command = gson.fromJson(jsonText, Server.Commands.get(commandEnum).getClass());
-            System.out.println("Command received: " + command.getName());
+            System.out.println("Command received: " + command.getCommandName());
             break;
         }
 
@@ -204,12 +204,12 @@ public final class Server implements IServer
 
     public void executeCommand(ICommand command)
     {
-        command.execute();
+        command.executeOnServer();
     }
 
     public void executeCommand(CommandEnum commandEnum)
     {
         var command = Server.Commands.get(commandEnum);
-        command.execute();
+        command.executeOnServer();
     }
 }

@@ -17,24 +17,24 @@ public final class RegisterPokerPlayer extends SimpleCommandModel implements ICo
         Name = this.getClass().getSimpleName();
     }
 
-    public String getName()
+    public String getCommandName()
     {
         return Name;
     }
 
-    public ClientSocket getReceiver() { return Receiver; }
+    public ClientSocket getClient() { return Receiver; }
 
-    public Object getReceivedObject() {
+    public Object getClientObject() {
         return Player;
     }
 
-    public void setReceiver(ClientSocket clientSocket) { Receiver = clientSocket; }
+    public void setClientToSendCommand(ClientSocket clientSocket) { Receiver = clientSocket; }
 
     public void setObjectToSend(Object object) {
         Player = (PlayerModel) object;
     }
 
-    public void execute()
+    public void executeOnServer()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);
@@ -48,7 +48,7 @@ public final class RegisterPokerPlayer extends SimpleCommandModel implements ICo
         poker.authorizePlayer(Receiver, Player);
     }
 
-    public void send()
+    public void sendToClient()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);

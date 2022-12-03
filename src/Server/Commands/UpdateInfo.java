@@ -17,22 +17,22 @@ public class UpdateInfo extends SimpleCommandModel implements ICommand
         Name = this.getClass().getSimpleName();
     }
 
-    public String getName()
+    public String getCommandName()
     {
         return Name;
     }
 
-    public ClientSocket getReceiver()
+    public ClientSocket getClient()
     {
         return Receiver;
     }
 
-    public Object getReceivedObject()
+    public Object getClientObject()
     {
         return tableModel;
     }
 
-    public void setReceiver(ClientSocket clientSocket) {
+    public void setClientToSendCommand(ClientSocket clientSocket) {
         Receiver = clientSocket;
     }
 
@@ -41,7 +41,7 @@ public class UpdateInfo extends SimpleCommandModel implements ICommand
         tableModel = (ClientTableModel)object;
     }
 
-    public void execute()
+    public void executeOnServer()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);
@@ -57,7 +57,7 @@ public class UpdateInfo extends SimpleCommandModel implements ICommand
         Receiver.sendMessage(jsonMessage);
     }
 
-    public void send()
+    public void sendToClient()
     {
         var poker = PokerContainer.getPoker();
         var players = poker.getPlayers();

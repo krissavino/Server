@@ -16,23 +16,23 @@ public class PlayerMove extends SimpleCommandModel implements ICommand
         Name = this.getClass().getSimpleName();
     }
 
-    public String getName()
+    public String getCommandName()
     {
         return Name;
     }
 
-    public ClientSocket getReceiver() { return Receiver; }
+    public ClientSocket getClient() { return Receiver; }
 
-    public Object getReceivedObject()
+    public Object getClientObject()
     {
         return bet;
     }
     public void setObjectToSend(Object object) {
     }
 
-    public void setReceiver(ClientSocket clientSocket) { Receiver = clientSocket; }
+    public void setClientToSendCommand(ClientSocket clientSocket) { Receiver = clientSocket; }
 
-    public void execute()
+    public void executeOnServer()
     {
         var Poker = PokerContainer.getPoker();
         var player = Poker.getPlayer(Receiver);
@@ -40,7 +40,7 @@ public class PlayerMove extends SimpleCommandModel implements ICommand
 
     }
 
-    public void send() {
+    public void sendToClient() {
 
     }
 }

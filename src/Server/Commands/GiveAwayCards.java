@@ -14,16 +14,16 @@ public class GiveAwayCards extends SimpleCommandModel implements ICommand
         Name = GiveAwayCards.class.getSimpleName();
     }
 
-    public String getName()
+    public String getCommandName()
     {
         return Name;
     }
 
-    public ClientSocket getReceiver() {
+    public ClientSocket getClient() {
         return Receiver;
     }
 
-    public void setReceiver(ClientSocket clientSocket) {
+    public void setClientToSendCommand(ClientSocket clientSocket) {
         Receiver = clientSocket;
     }
 
@@ -31,11 +31,11 @@ public class GiveAwayCards extends SimpleCommandModel implements ICommand
 
     }
 
-    public Object getReceivedObject() {
+    public Object getClientObject() {
         return null;
     }
 
-    public void execute()
+    public void executeOnServer()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);
@@ -47,7 +47,7 @@ public class GiveAwayCards extends SimpleCommandModel implements ICommand
 
     }
 
-    public void send()
+    public void sendToClient()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);

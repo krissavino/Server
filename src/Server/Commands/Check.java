@@ -15,28 +15,28 @@ public class Check extends SimpleCommandModel implements ICommand
         Name = this.getClass().getSimpleName();
     }
 
-    public String getName()
+    public String getCommandName()
     {
         return Name;
     }
 
-    public ClientSocket getReceiver() {
+    public ClientSocket getClient() {
         return null;
     }
 
-    public Object getReceivedObject()
+    public Object getClientObject()
     {
         return null;
     }
 
-    public void setReceiver(ClientSocket clientSocket) {
+    public void setClientToSendCommand(ClientSocket clientSocket) {
         Receiver = clientSocket;
     }
 
     public void setObjectToSend(Object object) {
     }
 
-    public void execute()
+    public void executeOnServer()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);
@@ -49,7 +49,7 @@ public class Check extends SimpleCommandModel implements ICommand
         poker.move(player, MoveType.Check, 0);
     }
 
-    public void send()
+    public void sendToClient()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);

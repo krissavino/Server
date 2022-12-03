@@ -42,7 +42,7 @@ public final class Poker implements IQueue
         setFirstTurn(Role.SmallBlind);
 
         restartGameTimer(10000);
-        new UpdateInfo().send();
+        new UpdateInfo().sendToClient();
 
         smallBlindFirstBet();
         bigBlindFirstBet();
@@ -250,7 +250,7 @@ public final class Poker implements IQueue
         Poker.Table.PlayerIndexTurn = (Poker.Table.PlayerIndexTurn + 1) % Poker.Table.PlacePlayerMap.size();
 
         restartGameTimer(10000);
-        new UpdateInfo().send();
+        new UpdateInfo().sendToClient();
     }
 
     public boolean isNextStage()
@@ -366,7 +366,7 @@ public final class Poker implements IQueue
         setWinner();
         restartGameTimer(10000);
 
-        new UpdateInfo().send();
+        new UpdateInfo().sendToClient();
     }
 
     private void moveBet(PlayerModel player, int moveBet)
@@ -661,9 +661,9 @@ public final class Poker implements IQueue
         addPlayerToQueue(player);
 
         ICommand registerPokerPlayer = new RegisterPokerPlayer();
-        registerPokerPlayer.setReceiver(clientSocket);
+        registerPokerPlayer.setClientToSendCommand(clientSocket);
         registerPokerPlayer.setObjectToSend(player);
-        registerPokerPlayer.send();
+        registerPokerPlayer.sendToClient();
 
         playerAuthorized(player.NickName);
 
@@ -695,7 +695,7 @@ public final class Poker implements IQueue
         if(isGameCanBeStarted() == true)
             restartWaitingTimer(6000);
 
-        new UpdateInfo().send();
+        new UpdateInfo().sendToClient();
     }
 
     private boolean isGameCanBeStarted()
