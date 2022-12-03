@@ -221,6 +221,11 @@ public final class Poker implements IQueue
 
     public void move(PlayerModel player, MoveType moveType, int moveBet)
     {
+        boolean isPlayerCanMove = ValidatePlayerMove(player);
+
+        if(isPlayerCanMove == false)
+            return;
+
         if(moveType == MoveType.Bet)
             moveBet(player, moveBet);
 
@@ -251,6 +256,17 @@ public final class Poker implements IQueue
 
         restartGameTimer(10000);
         new UpdateInfo().sendToClient();
+    }
+
+    private boolean ValidatePlayerMove(PlayerModel player)
+    {
+        var placeWitchCanMove = Poker.Table.PlayerIndexTurn;
+        var playerPlace = player.Place;
+
+        if(playerPlace == placeWitchCanMove)
+            return true;
+
+        return false;
     }
 
     public boolean isNextStage()
