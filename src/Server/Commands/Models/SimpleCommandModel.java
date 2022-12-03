@@ -6,7 +6,7 @@ public class SimpleCommandModel implements ISimpleCommand
 {
     protected String Name = "None";
 
-    public String getName() {
+    public String getCommandName() {
         return Name;
     }
 }

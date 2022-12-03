@@ -188,7 +188,7 @@ public final class Server implements IServer
 
         for(var commandEnum : CommandEnum.values())
         {
-            if (jCommand.getName().equals(commandEnum.toString()) == false)
+            if (jCommand.getCommandName().equals(commandEnum.toString()) == false)
                 continue;
 
             if (Server.Commands.get(commandEnum) == null)
