@@ -39,11 +39,10 @@ public final class RegisterPokerPlayer extends SimpleCommandModel implements ICo
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);
 
-        if(player == null) {
-            System.out.println(String.format("Sender: N\\A, command: %s", Name));
-        }
+        if(player == null)
+            System.out.println(String.format("Отправитель: имя неизвестно, команда: %s", Name));
         else
-            System.out.println(String.format("Sender: %s, command: %s",player.NickName ,Name));
+            System.out.println(String.format("Отправитель %s, команда: %s",player.NickName ,Name));
 
         poker.authorizePlayer(Receiver, Player);
     }
@@ -54,9 +53,9 @@ public final class RegisterPokerPlayer extends SimpleCommandModel implements ICo
         var player = poker.getPlayer(Receiver);
 
         if(player == null)
-            System.out.println(String.format("Receiver: N\\A, command: %s", Name));
+            System.out.println(String.format("Получатель: имя неизвестно, команда: %s", Name));
         else
-            System.out.println(String.format("Receiver %s, command: %s",player.NickName ,Name));
+            System.out.println(String.format("Получатель %s, команда: %s",player.NickName ,Name));
 
         Player = player;
 

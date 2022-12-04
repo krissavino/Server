@@ -48,14 +48,5 @@ public class Stop extends SimpleCommandModel implements ICommand
         ServerContainer.getServer().stop();
     }
 
-    public void sendToClient()
-    {
-        var poker = PokerContainer.getPoker();
-        var player = poker.getPlayer(Receiver);
-
-        if(player == null)
-            System.out.println(String.format("Получатель: имя неизвестно, команда: %s", Name));
-        else
-            System.out.println(String.format("Получатель %s, команда: %s",player.NickName ,Name));
-    }
+    public void sendToClient() {}
 }

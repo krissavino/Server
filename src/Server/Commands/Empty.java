@@ -7,55 +7,21 @@ import Server.Poker.PokerContainer;
 
 public class Empty extends SimpleCommandModel implements ICommand
 {
-    protected transient ClientSocket Receiver = null;
+    protected transient ClientSocket Client = null;
 
-    public Empty()
-    {
-        Name = this.getClass().getSimpleName();
-    }
+    public Empty() { Name = this.getClass().getSimpleName(); }
 
-    public String getCommandName()
-    {
-        return Name;
-    }
+    public String getCommandName() { return Name; }
 
-    public ClientSocket getClient() {
-        return Receiver;
-    }
+    public ClientSocket getClient() { return Client; }
 
-    public void setClientToSendCommand(ClientSocket clientSocket) {
-        Receiver = clientSocket;
-    }
+    public void setClientToSendCommand(ClientSocket clientSocket) { Client = clientSocket; }
 
-    public void setObjectToSend(Object object)
-    {
+    public void setObjectToSend(Object object) {}
 
-    }
+    public Object getClientObject() { return null; }
 
-    public Object getClientObject() {
-        return null;
-    }
+    public void executeOnServer() {}
 
-    public void executeOnServer()
-    {
-        var poker = PokerContainer.getPoker();
-        var player = poker.getPlayer(Receiver);
-
-        if(player == null)
-            System.out.println(String.format("Отправитель: имя неизвестно, команда: %s", Name));
-        else
-            System.out.println(String.format("Отправитель %s, команда: %s",player.NickName ,Name));
-
-    }
-
-    public void sendToClient()
-    {
-        var poker = PokerContainer.getPoker();
-        var player = poker.getPlayer(Receiver);
-
-        if(player == null)
-            System.out.println(String.format("Получатель: имя неизвестно, команда: %s", Name));
-        else
-            System.out.println(String.format("Получатель %s, команда: %s",player.NickName ,Name));
-    }
+    public void sendToClient() {}
 }

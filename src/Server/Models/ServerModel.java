@@ -36,10 +36,14 @@ public final class ServerModel
         }
 
         Commands.put(CommandEnum.Empty,new Empty());
-        Commands.put(CommandEnum.GiveAwayCards,new GiveAwayCards());
-        Commands.put(CommandEnum.PlaceOnTable,new PlaceOnTable());
-        Commands.put(CommandEnum.RegisterPokerPlayer,new RegisterPokerPlayer());
-        Commands.put(CommandEnum.Stop,new Stop());
+        Commands.put(CommandEnum.Disconnect,new Disconnect());
         Commands.put(CommandEnum.UpdateInfo,new UpdateInfo());
+        Commands.put(CommandEnum.RegisterPokerPlayer,new RegisterPokerPlayer());
+
+        Commands.put(CommandEnum.MoveBet,new MoveBet());
+        Commands.put(CommandEnum.MoveCall,new MoveCall());
+        Commands.put(CommandEnum.MoveCheck,new MoveCheck());
+        Commands.put(CommandEnum.MoveFold,new MoveFold());
+        Commands.put(CommandEnum.MoveRaise,new MoveRaise());
     }
 }

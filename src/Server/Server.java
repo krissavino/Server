@@ -37,7 +37,7 @@ public final class Server implements IServer
     {
         if(Server.IsServerStarted == true)
         {
-            System.out.println("Server already started!");
+            System.out.println("Сервер уже запущен, отменён повторный запуск!");
             return;
         }
 
@@ -84,17 +84,20 @@ public final class Server implements IServer
             var poker = PokerContainer.getPoker();
             var player = poker.getPlayer(client);
 
+            var disconnect = new Disconnect();
+            disconnect.setClientToSendCommand(client);
+            disconnect.sendToClient();
             clientSocket.close();
             Server.Clients.remove(clientSocket);
 
             if(player == null)
-                System.out.println("Server disconnected client with the same nickname");
+                System.out.println("Сервер отключил игрока, который пытался зайти под именем уже зарегистрированного игрока");
             else
-                System.out.println("Server disconnected client: " + player.NickName);
+                System.out.println("Сервер отключил игрока: " + player.NickName);
         }
         catch (IOException e)
         {
-            System.out.println("Error while player disconnecting: " + e.getMessage());
+            System.out.println("Ошибка при отключении игрока: " + e.getMessage());
         }
     }
 
@@ -170,11 +173,10 @@ public final class Server implements IServer
         if(player == null)
             player = new PlayerModel();
 
-        System.out.println( String.format("Player <%s> disconnected",player.NickName));
+        System.out.println( String.format("Игрок <%s> отключился",player.NickName));
 
         PokerContainer.getPoker().removePlayer(clientSocket);
         Server.Clients.remove(clientSocket.getSocket());
-        PokerContainer.getPoker().setWinner();
     }
 
     private ICommand tryGetCommand(String jsonText)
@@ -195,7 +197,6 @@ public final class Server implements IServer
                 continue;
 
             command = gson.fromJson(jsonText, Server.Commands.get(commandEnum).getClass());
-            System.out.println("Command received: " + command.getCommandName());
             break;
         }
 

@@ -2,19 +2,19 @@ package Server;
 
 import Server.Interfaces.IThreadController;
 
-public class ThreadController implements IThreadController
+public final class ThreadController implements IThreadController
 {
-    private boolean cancelationRequested = false;
+    private boolean cancellationRequested = false;
 
     public boolean isCancellationRequested() {
-        return cancelationRequested;
+        return cancellationRequested;
     }
 
     public void Cancel() {
-        cancelationRequested = true;
+        cancellationRequested = true;
     }
 
     public void reset() {
-        cancelationRequested = false;
+        cancellationRequested = false;
     }
 }

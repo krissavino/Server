@@ -2,12 +2,14 @@ package Server.Commands.Enums;
 
 public enum CommandEnum
 {
+    Disconnect,
     Empty,
     Stop,
-    GiveAwayCards,
-    PlaceOnTable,
-    SendPlayerMoveToServer,
     UpdateInfo,
-    Authorize,
-    RegisterPokerPlayer
+    RegisterPokerPlayer,
+    MoveBet,
+    MoveCall,
+    MoveCheck,
+    MoveFold,
+    MoveRaise,
 }
