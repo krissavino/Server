@@ -30,9 +30,9 @@ public class Disconnect extends SimpleCommandModel implements ICommand
         var player = poker.getPlayer(Client);
 
         if(player == null)
-            System.out.println(String.format("Получатель: имя неизвестно, команда: %s", Name));
+            System.out.printf("Получатель: имя неизвестно, команда: %s%n", Name);
         else
-            System.out.println(String.format("Получатель %s, команда: %s",player.NickName ,Name));
+            System.out.printf("Получатель %s, команда: %s%n",player.NickName ,Name);
 
         var text = JsonConverter.toJson(this);
         Client.sendMessage(text);

@@ -10,9 +10,9 @@ import java.net.Socket;
 
 public final class ClientSocket implements IClient
 {
-    private Socket Socket;
-    private BufferedReader BufferedReader;
-    private PrintWriter BufferedWriter;
+    private final Socket Socket;
+    private final BufferedReader BufferedReader;
+    private final PrintWriter BufferedWriter;
 
     ClientSocket(Socket socket)
     {
@@ -36,7 +36,7 @@ public final class ClientSocket implements IClient
 
     public boolean sendMessage(String message)
     {
-        if(Socket.isConnected() == false)
+        if(!Socket.isConnected())
             return false;
 
         BufferedWriter.println(message);

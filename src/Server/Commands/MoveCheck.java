@@ -30,9 +30,9 @@ public class MoveCheck extends SimpleCommandModel implements ICommand
         var player = poker.getPlayer(Client);
 
         if(player == null)
-            System.out.println(String.format("Отправитель: имя неизвестно, команда: %s", Name));
+            System.out.printf("Отправитель: имя неизвестно, команда: %s%n", Name);
         else
-            System.out.println(String.format("Отправитель %s, команда: %s",player.NickName ,Name));
+            System.out.printf("Отправитель %s, команда: %s%n",player.NickName ,Name);
 
         poker.move(player, MoveType.Check, 0);
     }

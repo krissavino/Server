@@ -10,6 +10,8 @@ import Server.Poker.Enums.GameState;
 import Server.Poker.Enums.LobbyState;
 import Server.Poker.Enums.MoveType;
 import Server.Poker.Enums.Role;
+import Server.Poker.Interfaces.IPokerMove;
+import Server.Poker.Interfaces.IPokerPlayers;
 import Server.Poker.Interfaces.IQueue;
 import Server.Poker.Models.ClientTableModel;
 import Server.Poker.Models.PlayerModel;
@@ -18,9 +20,9 @@ import Server.ServerContainer;
 
 import java.util.*;
 
-public final class Poker implements IQueue
+public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 {
-    private PokerModel Poker = new PokerModel();
+    private final PokerModel Poker = new PokerModel();
     private Timer GameTimer = new Timer();
     private Timer WaitingTimer = new Timer();
 
@@ -36,9 +38,10 @@ public final class Poker implements IQueue
         Poker.Table.LobbyState = LobbyState.Started;
         Poker.Table.CardsForDrop = Cards.generateCards();
 
-        PlacePlayersFromQueue();
+        placePlayersFromQueue();
         setRoles();
         resetBets();
+        resetLastMoves( true);
         handOutCardsToPlayers(2);
         placeCardsOnTable();
 
@@ -50,13 +53,16 @@ public final class Poker implements IQueue
 
     public void move(PlayerModel player, MoveType moveType, int moveBet)
     {
-        boolean isPlayerCanMove = ValidatePlayerMove(player);
+        boolean isPlayerCanMove = validatePlayerMove(player);
 
         if(isPlayerCanMove == false)
             return;
 
         if(moveType == MoveType.Bet)
-            moveBet(player, moveBet);
+            if(validatePlayerBet(player, moveBet) == true)
+                moveBet(player, moveBet);
+            else
+                moveCheck(player);
 
         if(moveType == MoveType.Fold)
             moveFold(player);
@@ -65,22 +71,26 @@ public final class Poker implements IQueue
             moveCheck(player);
 
         if(moveType == MoveType.Raise)
-            moveRaise(player, moveBet);
+            if(validatePlayerBet(player, moveBet) == true)
+                moveRaise(player, moveBet);
+            else
+                moveCheck(player);
 
         if(moveType == MoveType.Call)
-            moveCall(player);
+            if(validatePlayerBet(player, (Poker.Table.Bet - player.Bet) ) == true)
+                moveCall(player);
+            else
+                moveCheck(player);
 
-        player.LastMove = moveType;
-        var text = String.format("Игрок <%s> сделал ход: %s",player.NickName, player.LastMove);
-        System.out.println(text);
+        printPlayerMove(player.NickName, player.LastMove);
 
         if(checkForEndGame() == true)
-            return;
-        else if(isNextStage() == true)
         {
-            changeGameStage();
-            System.out.println("GameStage изменился: " + Poker.Table.GameState);
+            endGame();
+            return;
         }
+        else if(isNextState() == true)
+            changeGameState();
 
         Poker.Table.PlayerIndexTurn = getNextPlayerTurnId();
 
@@ -88,42 +98,51 @@ public final class Poker implements IQueue
         new UpdateInfo().sendToClient();
     }
 
-
-    private void moveFold(PlayerModel player)
+    public void moveBet(PlayerModel player, int moveBet)
     {
-        player.Bet = -1;
+        player.Chips -= moveBet;
+
+        if(player.Bet == 0)
+            player.Bet = moveBet;
+        else
+            player.Bet += moveBet;
+
+        Poker.Table.Pot += moveBet;
+        Poker.Table.Bet = moveBet;
+        player.LastMove = MoveType.Bet;
+    }
+
+    public void moveFold(PlayerModel player)
+    {
+        player.Bet = 0;
+        player.LastMove = MoveType.Fold;
     }
 
     public void moveCheck(PlayerModel player)
     {
-        if(player.Bet == -1)
-            player.Bet = 0;
-
-        if(Poker.Table.Bet > player.Bet)
-            moveCall(player);
+        player.LastMove = MoveType.Check;
     }
 
-    private void moveCall(PlayerModel player)
+    public void moveCall(PlayerModel player)
     {
-        if(player.Bet > 0)
-        {
-            player.Chips -= (Poker.Table.Bet - player.Bet);
-            Poker.Table.Pot += (Poker.Table.Bet - player.Bet);
-        }
-        else
-        {
-            player.Chips -= Poker.Table.Bet;
-            Poker.Table.Pot += Poker.Table.Bet;
-        }
+        var bet = Poker.Table.Bet - player.Bet;
 
-        player.Bet = Poker.Table.Bet;
+        if(player.Bet == 0)
+            player.Bet = bet;
+        else
+            player.Bet += bet;
+
+        player.Chips -= bet;
+        Poker.Table.Pot += bet;
+
+        player.LastMove = MoveType.Call;
     }
 
-    private void moveRaise(PlayerModel player, int moveBet)
+    public void moveRaise(PlayerModel player, int moveBet)
     {
         player.Chips -= moveBet;
 
-        if(player.Bet == -1)
+        if(player.Bet == 0)
             player.Bet = moveBet;
         else
             player.Bet += moveBet;
@@ -134,18 +153,149 @@ public final class Poker implements IQueue
             Poker.Table.Bet += moveBet;
 
         Poker.Table.Pot += moveBet;
+
+        player.LastMove = MoveType.Call;
     }
 
-    public boolean checkForEndGame()
+    public ClientTableModel getClientTable()
+    {
+        ClientTableModel clientTable = new ClientTableModel();
+        clientTable.Pot             = Poker.Table.Pot                  ;
+        clientTable.Bet             = Poker.Table.Bet                  ;
+        clientTable.PlayerIndexTurn = Poker.Table.PlayerIndexTurn      ;
+        clientTable.TimerStartTime  = Poker.Table.TimerStartTime       ;
+        clientTable.Winner          = Poker.Table.Winner               ;
+        clientTable.GameState       = Poker.Table.GameState            ;
+        clientTable.LobbyState      = Poker.Table.LobbyState           ;
+        clientTable.CardsOnTable    = Poker.Table.CardsOnTable         ;
+        clientTable.PlacePlayerMap  = Poker.Table.PlacePlayerMap       ;
+        clientTable.PlayersInQueue  = Poker.Table.PlayersInQueue.size();
+
+        return clientTable;
+    }
+
+    public ArrayList<PlayerModel> getPlayers()
+    {
+        var playersFromQueue = Poker.Table.PlayersInQueue;
+        var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.values();
+        var players = new ArrayList<PlayerModel>();
+
+        for (var player : playersFromQueue)
+            players.add(player);
+
+        for (var player : playersFromPlacePlayerMap)
+            players.add(player);
+
+        return players;
+    }
+
+    public void markPlayerAsDisconnected(PlayerModel player)
+    {
+        player.Disconnected = true;
+
+        if(player.InQueue == true)
+        {
+            removePlayerFromQueue(player);
+            return;
+        }
+
+        if(Poker.Table.PlayerIndexTurn == player.Place)
+            move(player, MoveType.Fold, 0);
+        else
+            moveFold(player);
+
+        if(checkForEndGame() == true)
+            endGame();
+    }
+
+    public PlayerModel getPlayer(ClientSocket clientSocket)
+    {
+        var player = getPlayerFromQueue(clientSocket);
+
+        if(player == null)
+            return getPlayerFromPlacePlayerMap(clientSocket);
+
+        return player;
+    }
+
+    public void placePlayersFromQueue()
+    {
+        var playersFromQueue = Poker.Table.PlayersInQueue;
+        var placePlayerMap = Poker.Table.PlacePlayerMap.values();
+
+        for (var player : playersFromQueue)
+        {
+            var freePlaceId =  getFreePlaceId();
+
+            if(freePlaceId == -1)
+            {
+                System.out.println("Все свободные места заняты, рассаживание прекращено");
+                return;
+            }
+
+            player.Place = freePlaceId;
+            player.InQueue = false;
+            Poker.Table.PlacePlayerMap.put(freePlaceId, player);
+
+            var text = String.format("Игрок <%s> сел за место под номером: %s", player.NickName, freePlaceId);
+            System.out.println(text);
+        }
+
+        for (var player : placePlayerMap)
+        {
+            var isPlayerRemovedFrom = Poker.Table.PlayersInQueue.remove(player);
+
+            if(!isPlayerRemovedFrom)
+                continue;
+
+            var text = String.format("Игрок <%s> был удалён из очереди", player.NickName);
+            System.out.println(text);
+        }
+    }
+
+    public void authorizePlayer(ClientSocket clientSocket, PlayerModel unauthorizedPlayer)
+    {
+        var nickName = unauthorizedPlayer.NickName;
+
+        if(isPlayerExist(nickName))
+        {
+            var server = ServerContainer.getServer();
+            server.disconnectClient(clientSocket);
+            return;
+        }
+
+        PlayerModel player = new PlayerModel();
+        player.Socket = clientSocket;
+        player.NickName = unauthorizedPlayer.NickName;
+        player.Chips = 500;
+        player.InQueue = true;
+
+        addPlayerToQueue(player);
+
+        ICommand registerPokerPlayer = new RegisterPokerPlayer();
+        registerPokerPlayer.setClientToSendCommand(clientSocket);
+        registerPokerPlayer.setObjectToSend(player);
+        registerPokerPlayer.sendToClient();
+
+        playerAuthorized(player.NickName);
+    }
+
+    private void printPlayerMove(String nickName, MoveType moveType)
+    {
+        var text = String.format("Игрок <%s> сделал ход: %s", nickName, moveType);
+        System.out.println(text);
+    }
+
+    private boolean checkForEndGame()
     {
         if(Poker.Table.LobbyState == LobbyState.Ended)
             return true;
 
-        if(isEndGame() == true)
-        {
-            endGame();
+        if(arePlayersDisconnected() == true)
             return true;
-        }
+
+        if(areMovesEnded() == true)
+            return true;
 
         return false;
     }
@@ -168,7 +318,7 @@ public final class Poker implements IQueue
         return nextTurnId;
     }
 
-    private boolean ValidatePlayerMove(PlayerModel player)
+    private boolean validatePlayerMove(PlayerModel player)
     {
         var placeWitchCanMove = Poker.Table.PlayerIndexTurn;
         var playerPlace = player.Place;
@@ -183,22 +333,27 @@ public final class Poker implements IQueue
         return false;
     }
 
-    public boolean isNextStage()
+    private  boolean validatePlayerBet(PlayerModel player, int bet)
+    {
+        if(player.Chips < bet)
+            return false;
+
+        return true;
+    }
+
+    private boolean isNextState()
     {
         if(Poker.Table.GameState == GameState.River)
             return false;
 
         boolean nextGameStage = isAllPlayersChecked();
 
-        if (nextGameStage == true)
+        if (nextGameStage)
             return true;
 
         nextGameStage = isAllPlayersCalled();
 
-        if (nextGameStage == true)
-            return true;
-
-        return false;
+        return nextGameStage;
     }
 
     private void setFirstTurn(Role role)
@@ -211,110 +366,76 @@ public final class Poker implements IQueue
         Poker.Table.PlayerIndexTurn = player.Place;
     }
 
-    public void PlacePlayersFromQueue()
-    {
-        var playersFromQueue = Poker.Table.PlayersInQueue;
-        var placePlayerMap = Poker.Table.PlacePlayerMap.values();
-
-        for (var player : playersFromQueue)
-        {
-            var freePlaceId =  getFreePlaceId();
-
-            if(freePlaceId == -1)
-            {
-                System.out.println("Все свободные места заняты, рассаживание прекращено");
-                return;
-            }
-
-            player.Place = freePlaceId;
-            player.IsInQueue = false;
-            Poker.Table.PlacePlayerMap.put(freePlaceId, player);
-
-            var text = String.format("Игрок <%s> сел за место под номером: %s", player.NickName, freePlaceId);
-            System.out.println(text);
-        }
-
-        for (var player : placePlayerMap)
-        {
-            var isPlayerRemovedFrom = Poker.Table.PlayersInQueue.remove(player);
-
-            if(isPlayerRemovedFrom == false)
-                continue;
-
-            var text = String.format("Игрок <%s> был удалён из очереди", player.NickName);
-            System.out.println(text);
-        }
-    }
-
     private void resetBets()
     {
         var players = Poker.Table.PlacePlayerMap.values();
 
         for(var player : players)
-        {
-            player.Bet = -1;
-            player.LastMove = MoveType.None;
-        }
+            player.Bet = 0;
+    }
+
+    private void resetLastMoves(boolean resetFolds)
+    {
+        var players = Poker.Table.PlacePlayerMap.values();
 
         for(var player : players)
         {
-            player.Bet = -1;
+            if(player.LastMove == MoveType.Fold)
+                if(resetFolds == false)
+                    continue;
+
             player.LastMove = MoveType.None;
         }
     }
 
-    public void setRoles()
+    private void setRoles()
     {
         var playersByTable = Poker.Table.PlacePlayerMap.values();
 
         for(int counter = 0; counter < playersByTable.size(); counter++)
         {
-            var playerFromPlace = Poker.Table.PlacePlayerMap.get(counter);
             var roleId = (counter + Poker.GamesFinished) % playersByTable.size();
 
             if(roleId > 3)
                 roleId = 3;
 
+            var playerFromPlace = Poker.Table.PlacePlayerMap.get(counter);
+
+            if(playerFromPlace == null)
+                continue;
+
             playerFromPlace.Role = Role.values()[roleId];
         }
     }
 
-    public void removePlayer(ClientSocket clientSocket)
+    private void removePlayerFromQueue(PlayerModel player)
     {
-        var isPlayerRemoved = removePlayerFromQueue(clientSocket);
-
-        if(isPlayerRemoved == true)
+        if(player == null)
             return;
 
-        removePlayerFromPlacePlayerMap(clientSocket);
+        var isPlayerRemoved = Poker.Table.PlayersInQueue.remove(player);
 
-        if(Poker.Table.LobbyState == LobbyState.Ended)
+        if(isPlayerRemoved == false)
             return;
 
-        if(Poker.Table.PlacePlayerMap.size() == 0)
-            endGame();
+        var text = String.format("Игрок <%s> был удалён из очереди", player.NickName);
+        System.out.println(text);
     }
 
-    private boolean removePlayerFromQueue(ClientSocket clientSocket)
+    private boolean arePlayersDisconnected()
     {
-        var playersFromQueue = Poker.Table.PlayersInQueue;
-        PlayerModel playerToRemove = null;
+        var players = Poker.Table.PlacePlayerMap.values();
+        var playersCount = players.size();
+        var disconnectedPlayersCount = 0;
 
-        for(var player : playersFromQueue)
-        {
-            if (player.Socket == clientSocket)
-            {
-                playerToRemove = player;
-                break;
-            }
-        }
+        for(var player : players)
+            if(player.Disconnected == true)
+                disconnectedPlayersCount++;
 
-        if(playerToRemove == null)
-            return false;
+        if(disconnectedPlayersCount >= playersCount - 1)
+            return true;
 
-        System.out.println("Игрок <" + playerToRemove.NickName +">  был удалён из очереди");
-        Poker.Table.PlayersInQueue.remove(playerToRemove);
-        return true;
+        return false;
     }
 
     private boolean removePlayerFromPlacePlayerMap(ClientSocket clientSocket)
@@ -339,22 +460,23 @@ public final class Poker implements IQueue
             return false;
 
 
-            playerToRemove.IsDisconnected = true;
+        playerToRemove.Disconnected = true;
+
         return true;
     }
 
-    public void removeDisconnectedPlayers()
+    private void removeDisconnectedPlayers()
     {
         var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.entrySet();
         var disconnectedPlayersPlaces = new ArrayList<Integer>();
 
         for(var placePlayer : playersFromPlacePlayerMap)
         {
-            if (placePlayer.getValue().IsDisconnected == true)
+            if (placePlayer.getValue().Disconnected == true)
             {
                 disconnectedPlayersPlaces.add(placePlayer.getKey());
 
-                var text = String.format("Игрок <%s> отключился и поэтому будет удалён из игры", placePlayer.getValue().NickName);
+                var text = String.format("Игрок <%s> был удалён т.к отключился от игры", placePlayer.getValue().NickName);
                 System.out.println(text);
             }
         }
@@ -379,12 +501,18 @@ public final class Poker implements IQueue
     {
         var playerSmallBlind = getPlayer(Role.SmallBlind);
 
+        if(playerSmallBlind == null)
+            return;
+
         move(playerSmallBlind, MoveType.Bet, 5);
     }
 
-    private void changeGameStage()
+    private void changeGameState()
     {
         Poker.Table.GameState = Poker.Table.GameState.next();
+
+        var text = String.format("GameState изменился: %s", Poker.Table.GameState);
+        System.out.println(text);
 
         int howMuchCardsToOpen = Poker.Table.GameState.ordinal() + 2;
 
@@ -393,15 +521,8 @@ public final class Poker implements IQueue
 
         var players = Poker.Table.PlacePlayerMap.values();
 
-        for (var player : players)
-        {
-            player.Bet = -1;
-
-            if(player.LastMove == MoveType.Fold)
-                continue;
-
-            player.LastMove = MoveType.None;
-        }
+        resetBets();
+        resetLastMoves( false);
 
         Poker.Table.Bet = 0;
     }
@@ -414,7 +535,7 @@ public final class Poker implements IQueue
         for (var player : players)
         {
             // IF SOMEONE CALLED AFTER BIG BLIND BET
-            if (player.Bet == Poker.Table.Bet || player.LastMove == MoveType.Fold) ;
+            if (player.LastMove == MoveType.Check || player.LastMove == MoveType.Fold) ;
             else nextGameStage = false;
         }
 
@@ -436,14 +557,14 @@ public final class Poker implements IQueue
         return nextGameStage;
     }
 
-    private boolean isEndGame()
+    private boolean areMovesEnded()
     {
-        var isAllPlayersEndMoves = isAllPlayersCalled() || isAllPlayersChecked();
-
         if(getFoldWinner() != null)
             return true;
 
-        if(Poker.Table.GameState == GameState.River && isAllPlayersEndMoves)
+        var areAllPlayersEndMoves = isAllPlayersCalled() || isAllPlayersChecked();
+
+        if(Poker.Table.GameState == GameState.River && areAllPlayersEndMoves == true)
             return true;
 
         return false;
@@ -451,20 +572,21 @@ public final class Poker implements IQueue
 
     private void endGame()
     {
-        GameTimer.cancel();
         Poker.GamesFinished += 1;
         Poker.Table.LobbyState = LobbyState.Ended;
 
         System.out.println("!!! Игра окончена !!!");
 
         removeDisconnectedPlayers();
+        TurnPlayersHand();
+
         var winner = getWinner();
         Poker.Table.Winner = winner;
 
         var winnerText = "";
 
         if(winner == null)
-            winnerText = String.format("Победитель: игрок покинул игру");
+            winnerText = "Победитель: игрок покинул игру";
         else
         {
             var chips = Poker.Table.Pot;
@@ -479,17 +601,13 @@ public final class Poker implements IQueue
         new UpdateInfo().sendToClient();
     }
 
-    private void moveBet(PlayerModel player, int moveBet)
+    private void TurnPlayersHand()
     {
-        player.Chips -= moveBet;
+        var players = Poker.Table.PlacePlayerMap.values();
 
-        if(player.Bet == -1)
-            player.Bet = moveBet;
-        else
-            player.Bet += moveBet;
-
-        Poker.Table.Pot += moveBet;
-        Poker.Table.Bet = moveBet;
+        for (var player : players)
+            for (var card : player.Cards)
+                card.Opened = true;
     }
 
     private PlayerModel getFoldWinner()
@@ -511,7 +629,7 @@ public final class Poker implements IQueue
         return null;
     }
 
-    public PlayerModel getWinner()
+    private PlayerModel getWinner()
     {
         var players = Poker.Table.PlacePlayerMap.values();
         PlayerModel winner = null;
@@ -546,21 +664,18 @@ public final class Poker implements IQueue
         return winners;
     }
 
-    public PlayerModel getPlayer(Role playerRole)
+    private PlayerModel getPlayer(Role playerRole)
     {
         var placePlayerMap = Poker.Table.PlacePlayerMap.values();
 
         for (var player : placePlayerMap)
-        {
-
             if(player.Role == playerRole)
                 return player;
-        }
 
         return null;
     }
 
-    public PlayerModel getPlayer(String nickName)
+    private PlayerModel getPlayer(String nickName)
     {
         var player = getPlayerFromQueue(nickName);
 
@@ -575,7 +690,7 @@ public final class Poker implements IQueue
         var playersFromQueue = Poker.Table.PlayersInQueue;
 
         for (var player : playersFromQueue)
-            if(player.NickName.equals(nickName) == true)
+            if(player.NickName.equals(nickName))
                 return player;
 
         return null;
@@ -586,20 +701,10 @@ public final class Poker implements IQueue
         var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.values();
 
         for (var player : playersFromPlacePlayerMap)
-            if(player.NickName.equals(nickName) == true)
+            if(player.NickName.equals(nickName))
                 return player;
 
         return null;
-    }
-
-    public PlayerModel getPlayer(ClientSocket clientSocket)
-    {
-        var player = getPlayerFromQueue(clientSocket);
-
-        if(player == null)
-            return getPlayerFromPlacePlayerMap(clientSocket);
-
-        return player;
     }
 
     private PlayerModel getPlayerFromQueue(ClientSocket clientSocket)
@@ -691,41 +796,11 @@ public final class Poker implements IQueue
         return winners;
     }
 
-    public void authorizePlayer(ClientSocket clientSocket, PlayerModel unauthorizedPlayer)
-    {
-        var nickName = unauthorizedPlayer.NickName;
-
-        if(isPlayerExist(nickName) == true)
-        {
-            var server = ServerContainer.getServer();
-            server.disconnectClient(clientSocket);
-            return;
-        }
-
-        PlayerModel player = new PlayerModel();
-        player.Socket = clientSocket;
-        player.NickName = unauthorizedPlayer.NickName;
-        player.Chips = 500;
-        player.IsInQueue = true;
-
-        addPlayerToQueue(player);
-
-        ICommand registerPokerPlayer = new RegisterPokerPlayer();
-        registerPokerPlayer.setClientToSendCommand(clientSocket);
-        registerPokerPlayer.setObjectToSend(player);
-        registerPokerPlayer.sendToClient();
-
-        playerAuthorized(player.NickName);
-    }
-
     private boolean isPlayerExist(String nickName)
     {
         var player = getPlayer(nickName);
 
-        if(player == null)
-            return false;
-
-        return true;
+        return player != null;
     }
 
     public void addPlayerToQueue(PlayerModel player)
@@ -742,7 +817,7 @@ public final class Poker implements IQueue
         var text = String.format("Игрок <%s> авторизовался", nickName);
         System.out.println(text);
 
-        if(isGameCanBeStarted() == true)
+        if(isGameCanBeStarted())
             restartWaitingTimer(Poker.WaitingDelay);
 
         new UpdateInfo().sendToClient();
@@ -758,8 +833,7 @@ public final class Poker implements IQueue
         var playersCount = playersFromPlacePlayerMap + playersFromQueueCount;
 
         if(playersCount >= Poker.MinPlayersCountNeededToStartGame)
-           if(Poker.Table.LobbyState == LobbyState.Waiting || Poker.Table.LobbyState == LobbyState.Ended)
-               return true;
+            return Poker.Table.LobbyState == LobbyState.Waiting || Poker.Table.LobbyState == LobbyState.Ended;
 
         return false;
     }
@@ -832,43 +906,11 @@ public final class Poker implements IQueue
         return false;
     }
 
-    public ClientTableModel getClientTable()
-    {
-        ClientTableModel clientTable = new ClientTableModel();
-        clientTable.Pot             = Poker.Table.Pot                  ;
-        clientTable.Bet             = Poker.Table.Bet                  ;
-        clientTable.PlayerIndexTurn = Poker.Table.PlayerIndexTurn      ;
-        clientTable.TimerStartTime  = Poker.Table.TimerStartTime;
-        clientTable.Winner          = Poker.Table.Winner               ;
-        clientTable.GameState = Poker.Table.GameState;
-        clientTable.LobbyState = Poker.Table.LobbyState;
-        clientTable.CardsOnTable    = Poker.Table.CardsOnTable         ;
-        clientTable.PlacePlayerMap  = Poker.Table.PlacePlayerMap;
-        clientTable.PlayersInQueue  = Poker.Table.PlayersInQueue.size();
-
-        return clientTable;
-    }
-
-    public ArrayList<PlayerModel> getPlayers()
-    {
-        var playersFromQueue = Poker.Table.PlayersInQueue;
-        var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.values();
-        var players = new ArrayList<PlayerModel>();
-
-        for (var player : playersFromQueue)
-            players.add(player);
-
-        for (var player : playersFromPlacePlayerMap)
-            players.add(player);
-
-        return players;
-    }
-
-    public void restartWaitingTimer(int delay)
+    private void restartWaitingTimer(int delay)
     {
         WaitingTimer.cancel();
+        WaitingTimer.purge();
         WaitingTimer = new Timer();
-
         var text = String.format("Таймер ожиданияя игроков начался: %s (delay), LobbyState: %s, GameStage: %s", delay, Poker.Table.LobbyState, Poker.Table.GameState);
         System.out.println(text);
 
@@ -882,11 +924,12 @@ public final class Poker implements IQueue
 
     private void WaitingTimerElapsed() { startGame(); }
 
-    public void restartGameTimer(int delay)
+    private void restartGameTimer(int delay)
     {
         GameTimer.cancel();
-        Poker.Table.TimerStartTime = delay;
+        GameTimer.purge();
         GameTimer = new Timer();
+        Poker.Table.TimerStartTime = delay;
 
         var text = String.format("Таймер начался: %s (delay), LobbyState: %s, GameStage: %s", delay, Poker.Table.LobbyState, Poker.Table.GameState);
         System.out.println(text);
@@ -905,7 +948,7 @@ public final class Poker implements IQueue
 
         if(Poker.Table.LobbyState == LobbyState.Ended)
         {
-            if (isGameCanBeStarted() == true)
+            if (isGameCanBeStarted())
                 startGame();
             else
                 System.out.println("Подключённых игроков меньше 2, игра не может быть начата");

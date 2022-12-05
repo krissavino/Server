@@ -17,7 +17,6 @@ import com.google.gson.reflect.TypeToken;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.util.ArrayList;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -25,7 +24,7 @@ public final class Server implements IServer
 {
     private ServerModel Server = new ServerModel(4);
 
-    private static Lock _locker = new ReentrantLock();
+    private static final Lock _locker = new ReentrantLock();
 
     public Server(int maxClients, int port)
     {
@@ -35,7 +34,7 @@ public final class Server implements IServer
 
     public void start(InetAddress inetAddress)
     {
-        if(Server.IsServerStarted == true)
+        if(Server.IsServerStarted)
         {
             System.out.println("Сервер уже запущен, отменён повторный запуск!");
             return;
@@ -101,19 +100,9 @@ public final class Server implements IServer
         }
     }
 
-    public ArrayList<ClientSocket> getClients()
-    {
-        var clients = new ArrayList<ClientSocket>();
-
-        for (var client : Server.Clients.entrySet())
-            clients.add(client.getValue());
-
-        return clients;
-    }
-
     private void waitForClient()
     {
-        while(Server.ThreadController.isCancellationRequested() == false)
+        while(!Server.ThreadController.isCancellationRequested())
         {
             try
             {
@@ -150,14 +139,14 @@ public final class Server implements IServer
         }
         catch (IOException e)
         {
-            if(e.getMessage().equals("Connection reset") == false)
+            if(!e.getMessage().equals("Connection reset"))
                 return;
 
             _locker.lock();
 
             try
             {
-                playerDisconnected(clientSocket);
+                markPlayerAsDisconnected(clientSocket);
             }
             finally
             {
@@ -166,16 +155,19 @@ public final class Server implements IServer
         }
     }
 
-    private void playerDisconnected(ClientSocket clientSocket)
+    private void markPlayerAsDisconnected(ClientSocket clientSocket)
     {
         var player = PokerContainer.getPoker().getPlayer(clientSocket);
 
         if(player == null)
             player = new PlayerModel();
 
-        System.out.println( String.format("Игрок <%s> отключился",player.NickName));
+        player.Disconnected = true;
 
-        PokerContainer.getPoker().removePlayer(clientSocket);
+        var text = String.format("Игрок <%s> отключился",player.NickName);
+        System.out.println(text);
+
+        PokerContainer.getPoker().markPlayerAsDisconnected(player);
         Server.Clients.remove(clientSocket.getSocket());
     }
 
@@ -190,7 +182,7 @@ public final class Server implements IServer
 
         for(var commandEnum : CommandEnum.values())
         {
-            if (jCommand.getCommandName().equals(commandEnum.toString()) == false)
+            if (!jCommand.getCommandName().equals(commandEnum.toString()))
                 continue;
 
             if (Server.Commands.get(commandEnum) == null)
@@ -205,12 +197,6 @@ public final class Server implements IServer
 
     public void executeCommand(ICommand command)
     {
-        command.executeOnServer();
-    }
-
-    public void executeCommand(CommandEnum commandEnum)
-    {
-        var command = Server.Commands.get(commandEnum);
         command.executeOnServer();
     }
 }

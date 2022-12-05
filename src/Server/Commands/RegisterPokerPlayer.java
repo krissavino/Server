@@ -9,8 +9,8 @@ import Server.Poker.PokerContainer;
 
 public final class RegisterPokerPlayer extends SimpleCommandModel implements ICommand
 {
-    protected PlayerModel Player = new PlayerModel();
-    protected transient ClientSocket Receiver = null;
+    private PlayerModel Player = new PlayerModel();
+    private transient ClientSocket Receiver = null;
 
     public RegisterPokerPlayer()
     {
@@ -40,9 +40,9 @@ public final class RegisterPokerPlayer extends SimpleCommandModel implements ICo
         var player = poker.getPlayer(Receiver);
 
         if(player == null)
-            System.out.println(String.format("Отправитель: имя неизвестно, команда: %s", Name));
+            System.out.printf("Отправитель: имя неизвестно, команда: %s%n", Name);
         else
-            System.out.println(String.format("Отправитель %s, команда: %s",player.NickName ,Name));
+            System.out.printf("Отправитель %s, команда: %s%n",player.NickName ,Name);
 
         poker.authorizePlayer(Receiver, Player);
     }
@@ -53,9 +53,9 @@ public final class RegisterPokerPlayer extends SimpleCommandModel implements ICo
         var player = poker.getPlayer(Receiver);
 
         if(player == null)
-            System.out.println(String.format("Получатель: имя неизвестно, команда: %s", Name));
+            System.out.printf("Получатель: имя неизвестно, команда: %s%n", Name);
         else
-            System.out.println(String.format("Получатель %s, команда: %s",player.NickName ,Name));
+            System.out.printf("Получатель %s, команда: %s%n",player.NickName ,Name);
 
         Player = player;
 

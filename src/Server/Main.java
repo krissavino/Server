@@ -42,8 +42,7 @@ public class Main
         var isSelectionCorrect = false;
         var scanner = new Scanner(System.in);
 
-        for(;isSelectionCorrect == false;)
-        {
+        while (!isSelectionCorrect) {
             var input = scanner.nextLine();
 
             if(input.length() != 1)

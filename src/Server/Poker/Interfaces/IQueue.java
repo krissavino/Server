@@ -5,7 +5,7 @@ import Server.Poker.Models.PlayerModel;
 
 public interface IQueue
 {
-    public void addPlayerToQueue(PlayerModel player);
+    void addPlayerToQueue(PlayerModel player);
 
-    public void PlacePlayersFromQueue();
+    void placePlayersFromQueue();
 }

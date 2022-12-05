@@ -4,6 +4,7 @@ import Server.ClientSocket;
 import Server.Commands.Interfaces.ICommand;
 import Server.Commands.Models.SimpleCommandModel;
 import Server.Poker.Enums.MoveType;
+import Server.Poker.Interfaces.IPokerMove;
 import Server.Poker.PokerContainer;
 
 public class MoveBet extends SimpleCommandModel implements ICommand
@@ -26,14 +27,16 @@ public class MoveBet extends SimpleCommandModel implements ICommand
     public void executeOnServer()
     {
         var poker = PokerContainer.getPoker();
+        var pokerMove = PokerContainer.getPokerMove();
         var player = poker.getPlayer(Client);
 
         if(player == null)
-            System.out.println(String.format("Отправитель: имя неизвестно, команда: %s", Name));
+            System.out.printf("Отправитель: имя неизвестно, команда: %s%n, отказано в выполнении", Name);
         else
-            System.out.println(String.format("Отправитель %s, команда: %s",player.NickName ,Name));
-
-        poker.move(player, MoveType.Bet, Bet);
+        {
+            System.out.printf("Отправитель %s, команда: %s%n", player.NickName, Name);
+            pokerMove.move(player, MoveType.Bet, Bet);
+        }
     }
 
     public void sendToClient() {}
