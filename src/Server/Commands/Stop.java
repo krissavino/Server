@@ -14,12 +14,12 @@ public class Stop extends SimpleCommandModel implements ICommand
         Name = this.getClass().getSimpleName();
     }
 
-    public String getName()
+    public String getCommandName()
     {
         return Name;
     }
 
-    public void setReceiver(ClientSocket clientSocket) {
+    public void setClientToSendCommand(ClientSocket clientSocket) {
         Receiver = clientSocket;
     }
 
@@ -27,35 +27,26 @@ public class Stop extends SimpleCommandModel implements ICommand
 
     }
 
-    public Object getReceivedObject() {
+    public Object getClientObject() {
         return null;
     }
 
-    public ClientSocket getReceiver() {
+    public ClientSocket getClient() {
         return Receiver;
     }
 
-    public void execute()
+    public void executeOnServer()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);
 
         if(player == null)
-            System.out.println(String.format("Отправитель: имя неизвестно, команда: %s", Name));
+            System.out.printf("Отправитель: имя неизвестно, команда: %s%n", Name);
         else
-            System.out.println(String.format("Отправитель %s, команда: %s",player.NickName ,Name));
+            System.out.printf("Отправитель %s, команда: %s%n",player.NickName ,Name);
 
         ServerContainer.getServer().stop();
     }
 
-    public void send()
-    {
-        var poker = PokerContainer.getPoker();
-        var player = poker.getPlayer(Receiver);
-
-        if(player == null)
-            System.out.println(String.format("Получатель: имя неизвестно, команда: %s", Name));
-        else
-            System.out.println(String.format("Получатель %s, команда: %s",player.NickName ,Name));
-    }
+    public void sendToClient() {}
 }

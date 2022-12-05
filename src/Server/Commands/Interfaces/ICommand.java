@@ -4,17 +4,17 @@ import Server.ClientSocket;
 
 public interface ICommand
 {
-    String getName();
+    String getCommandName();
 
-    ClientSocket getReceiver();
+    ClientSocket getClient();
 
-    Object getReceivedObject();
+    Object getClientObject();
 
-    void setReceiver(ClientSocket clientSocket);
+    void setClientToSendCommand(ClientSocket clientSocket);
 
     void setObjectToSend(Object object);
 
-    void execute();
+    void executeOnServer();
 
-    void send();
+    void sendToClient();
 }

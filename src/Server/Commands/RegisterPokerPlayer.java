@@ -9,54 +9,53 @@ import Server.Poker.PokerContainer;
 
 public final class RegisterPokerPlayer extends SimpleCommandModel implements ICommand
 {
-    protected PlayerModel Player = new PlayerModel();
-    protected transient ClientSocket Receiver = null;
+    private PlayerModel Player = new PlayerModel();
+    private transient ClientSocket Receiver = null;
 
     public RegisterPokerPlayer()
     {
         Name = this.getClass().getSimpleName();
     }
 
-    public String getName()
+    public String getCommandName()
     {
         return Name;
     }
 
-    public ClientSocket getReceiver() { return Receiver; }
+    public ClientSocket getClient() { return Receiver; }
 
-    public Object getReceivedObject() {
+    public Object getClientObject() {
         return Player;
     }
 
-    public void setReceiver(ClientSocket clientSocket) { Receiver = clientSocket; }
+    public void setClientToSendCommand(ClientSocket clientSocket) { Receiver = clientSocket; }
 
     public void setObjectToSend(Object object) {
         Player = (PlayerModel) object;
     }
 
-    public void execute()
-    {
-        var poker = PokerContainer.getPoker();
-        var player = poker.getPlayer(Receiver);
-
-        if(player == null) {
-            System.out.println(String.format("Sender: N\\A, command: %s", Name));
-        }
-        else
-            System.out.println(String.format("Sender: %s, command: %s",player.NickName ,Name));
-
-        poker.authorizePlayer(Receiver, Player);
-    }
-
-    public void send()
+    public void executeOnServer()
     {
         var poker = PokerContainer.getPoker();
         var player = poker.getPlayer(Receiver);
 
         if(player == null)
-            System.out.println(String.format("Receiver: N\\A, command: %s", Name));
+            System.out.printf("Отправитель: имя неизвестно, команда: %s%n", Name);
         else
-            System.out.println(String.format("Receiver %s, command: %s",player.NickName ,Name));
+            System.out.printf("Отправитель %s, команда: %s%n",player.NickName ,Name);
+
+        poker.authorizePlayer(Receiver, Player);
+    }
+
+    public void sendToClient()
+    {
+        var poker = PokerContainer.getPoker();
+        var player = poker.getPlayer(Receiver);
+
+        if(player == null)
+            System.out.printf("Получатель: имя неизвестно, команда: %s%n", Name);
+        else
+            System.out.printf("Получатель %s, команда: %s%n",player.NickName ,Name);
 
         Player = player;
 

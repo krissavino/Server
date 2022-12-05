@@ -9,7 +9,7 @@ public class CardModel implements ICard
     public CardColor Color = CardColor.values()[0];
     public CardName Name = CardName.values()[0];
 
-    public boolean IsOpened = false;
+    public boolean Opened = false;
     public CardModel(CardColor color, CardName name)
     {
         this.Color = color;
@@ -24,10 +24,10 @@ public class CardModel implements ICard
     }
 
     public void setOpened(boolean opened) {
-        IsOpened = opened;
+        Opened = opened;
     }
 
     public boolean isOpened() {
-        return IsOpened;
+        return Opened;
     }
 }

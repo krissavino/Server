@@ -1,22 +1,17 @@
 package Server.Interfaces;
 
 import Server.ClientSocket;
-import Server.Commands.Enums.CommandEnum;
 import Server.Commands.Interfaces.ICommand;
 
-import java.util.ArrayList;
+import java.net.InetAddress;
 
 public interface IServer
 {
-    void start();
+    void start(InetAddress inetAddress);
 
     void stop();
 
-    ArrayList<ClientSocket> getClients();
-
     void disconnectClient(ClientSocket clientSocket);
-
-    void executeCommand(CommandEnum commandEnum);
 
     void executeCommand(ICommand command);
 }

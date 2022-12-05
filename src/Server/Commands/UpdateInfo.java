@@ -9,62 +9,62 @@ import Server.Poker.PokerContainer;
 
 public class UpdateInfo extends SimpleCommandModel implements ICommand
 {
-    protected ClientTableModel tableModel = new ClientTableModel();
-    protected transient ClientSocket Receiver = null;
+    protected ClientTableModel Table = new ClientTableModel();
+    protected transient ClientSocket Client = null;
 
     public UpdateInfo()
     {
         Name = this.getClass().getSimpleName();
     }
 
-    public String getName()
+    public String getCommandName()
     {
         return Name;
     }
 
-    public ClientSocket getReceiver()
+    public ClientSocket getClient()
     {
-        return Receiver;
+        return Client;
     }
 
-    public Object getReceivedObject()
+    public Object getClientObject()
     {
-        return tableModel;
+        return Table;
     }
 
-    public void setReceiver(ClientSocket clientSocket) {
-        Receiver = clientSocket;
+    public void setClientToSendCommand(ClientSocket clientSocket) {
+        Client = clientSocket;
     }
 
     public void setObjectToSend(Object object)
     {
-        tableModel = (ClientTableModel)object;
+        Table = (ClientTableModel)object;
     }
 
-    public void execute()
+    public void executeOnServer()
     {
         var poker = PokerContainer.getPoker();
-        var player = poker.getPlayer(Receiver);
+        var player = poker.getPlayer(Client);
 
         if(player == null)
-            System.out.println(String.format("Отправитель: имя неизвестно, команда: %s", Name));
+            System.out.printf("Отправитель: имя неизвестно, команда: %s%n", Name);
         else
-            System.out.println(String.format("Отправитель %s, команда: %s",player.NickName ,Name));
+            System.out.printf("Отправитель %s, команда: %s%n",player.NickName ,Name);
 
-        tableModel = poker.getClientTable();;
+        Table = poker.getClientTable();
 
         var jsonMessage = JsonConverter.toJson(this);
-        Receiver.sendMessage(jsonMessage);
+        Client.sendMessage(jsonMessage);
     }
 
-    public void send()
+    public void sendToClient()
     {
         var poker = PokerContainer.getPoker();
         var players = poker.getPlayers();
 
         ClientTableModel clientTable = poker.getClientTable();
 
-        tableModel = clientTable;
+        Table = clientTable;
 
         for(var player : players)
         {

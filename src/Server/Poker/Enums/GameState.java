@@ -1,12 +1,12 @@
 package Server.Poker.Enums;
 
-public enum GameStage {
+public enum GameState {
     Preflop,
     Flop,
     Turn,
     River;
-    private static GameStage[] stages = values();
-    public GameStage next()
+    private static final GameState[] stages = values();
+    public GameState next()
     {
         return stages[(this.ordinal()+1) % stages.length];
     }

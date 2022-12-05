@@ -17,7 +17,6 @@ import com.google.gson.reflect.TypeToken;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.util.ArrayList;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -25,12 +24,7 @@ public final class Server implements IServer
 {
     private ServerModel Server = new ServerModel(4);
 
-    private static Lock _locker = new ReentrantLock();
-
-    public static void main(String[] args)
-    {
-        ServerContainer.getServer().start();
-    }
+    private static final Lock _locker = new ReentrantLock();
 
     public Server(int maxClients, int port)
     {
@@ -38,11 +32,11 @@ public final class Server implements IServer
         Server.Port = port;
     }
 
-    public void start()
+    public void start(InetAddress inetAddress)
     {
-        if(Server.IsServerStarted == true)
+        if(Server.IsServerStarted)
         {
-            System.out.println("Server already started!");
+            System.out.println("Сервер уже запущен, отменён повторный запуск!");
             return;
         }
 
@@ -50,14 +44,14 @@ public final class Server implements IServer
 
         try
         {
-            InetAddress localHostAddress = InetAddress.getLocalHost();
-            Server.Socket = new ServerSocket(Server.Port, Server.MaxClients,localHostAddress);
+            Server.Socket = new ServerSocket(Server.Port, Server.MaxClients,inetAddress);
 
             var threadServer = new Thread(()->waitForClient());
             threadServer.start();
             Server.IsServerStarted = true;
 
-            System.out.println("Server started: " + localHostAddress.getHostAddress() + ", port: " + Server.Port);
+            var text = String.format("Server started: %s, port: %s", inetAddress.getHostAddress(), Server.Port);
+            System.out.println(text);
         }
         catch (Exception e)
         {
@@ -89,33 +83,26 @@ public final class Server implements IServer
             var poker = PokerContainer.getPoker();
             var player = poker.getPlayer(client);
 
+            var disconnect = new Disconnect();
+            disconnect.setClientToSendCommand(client);
+            disconnect.sendToClient();
             clientSocket.close();
             Server.Clients.remove(clientSocket);
 
             if(player == null)
-                System.out.println("Server disconnected client with the same nickname");
+                System.out.println("Сервер отключил игрока, который пытался зайти под именем уже зарегистрированного игрока");
             else
-                System.out.println("Server disconnected client: " + player.NickName);
+                System.out.println("Сервер отключил игрока: " + player.NickName);
         }
         catch (IOException e)
         {
-            System.out.println("Error while player disconnecting: " + e.getMessage());
+            System.out.println("Ошибка при отключении игрока: " + e.getMessage());
         }
-    }
-
-    public ArrayList<ClientSocket> getClients()
-    {
-        var clients = new ArrayList<ClientSocket>();
-
-        for (var client : Server.Clients.entrySet())
-            clients.add(client.getValue());
-
-        return clients;
     }
 
     private void waitForClient()
     {
-        while(Server.ThreadController.isCancellationRequested() == false)
+        while(!Server.ThreadController.isCancellationRequested())
         {
             try
             {
@@ -146,20 +133,20 @@ public final class Server implements IServer
             {
                 message =  clientSocket.getBufferedReader().readLine();
                 var command = tryGetCommand(message);
-                command.setReceiver(clientSocket);
+                command.setClientToSendCommand(clientSocket);
                 executeCommand(command);
             }
         }
         catch (IOException e)
         {
-            if(e.getMessage().equals("Connection reset") == false)
+            if(!e.getMessage().equals("Connection reset"))
                 return;
 
             _locker.lock();
 
             try
             {
-                playerDisconnected(clientSocket);
+                markPlayerAsDisconnected(clientSocket);
             }
             finally
             {
@@ -168,18 +155,20 @@ public final class Server implements IServer
         }
     }
 
-    private void playerDisconnected(ClientSocket clientSocket)
+    private void markPlayerAsDisconnected(ClientSocket clientSocket)
     {
         var player = PokerContainer.getPoker().getPlayer(clientSocket);
 
         if(player == null)
             player = new PlayerModel();
 
-        System.out.println( String.format("Player <%s> disconnected",player.NickName));
+        player.Disconnected = true;
 
-        PokerContainer.getPoker().removePlayer(clientSocket);
+        var text = String.format("Игрок <%s> отключился",player.NickName);
+        System.out.println(text);
+
+        PokerContainer.getPoker().markPlayerAsDisconnected(player);
         Server.Clients.remove(clientSocket.getSocket());
-        PokerContainer.getPoker().setWinner();
     }
 
     private ICommand tryGetCommand(String jsonText)
@@ -193,14 +182,13 @@ public final class Server implements IServer
 
         for(var commandEnum : CommandEnum.values())
         {
-            if (jCommand.getName().equals(commandEnum.toString()) == false)
+            if (!jCommand.getCommandName().equals(commandEnum.toString()))
                 continue;
 
             if (Server.Commands.get(commandEnum) == null)
                 continue;
 
             command = gson.fromJson(jsonText, Server.Commands.get(commandEnum).getClass());
-            System.out.println("Command received: " + command.getName());
             break;
         }
 
@@ -209,12 +197,6 @@ public final class Server implements IServer
 
     public void executeCommand(ICommand command)
     {
-        command.execute();
-    }
-
-    public void executeCommand(CommandEnum commandEnum)
-    {
-        var command = Server.Commands.get(commandEnum);
-        command.execute();
+        command.executeOnServer();
     }
 }

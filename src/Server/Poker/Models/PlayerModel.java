@@ -17,11 +17,9 @@ public class PlayerModel
     public Role Role = Server.Poker.Enums.Role.Player;
     public int Chips = 0;
     public int Place = 0;
-    public int Bet = -1;
+    public int Bet = 0;
     public int Score = 0;
-
-    public boolean IsDisconnected = false;
-
-    public boolean IsInQueue = true;
+    public boolean Disconnected = false;
+    public boolean InQueue = true;
     public List<CardModel> Cards = new ArrayList<>();
 }
