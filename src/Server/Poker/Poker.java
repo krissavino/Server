@@ -68,13 +68,13 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             moveFold(player);
 
         if(moveType == MoveType.Check)
-            moveCheck(player);
+            if((player.Bet != Poker.Table.Bet) && Poker.Table.Bet != 0)
+                    moveCall(player);
+                else
+                    moveCheck(player);
 
         if(moveType == MoveType.Raise)
-            if(validatePlayerBet(player, moveBet) == true)
-                moveRaise(player, moveBet);
-            else
-                moveCheck(player);
+            moveRaise(player, moveBet);
 
         if(moveType == MoveType.Call)
             if(validatePlayerBet(player, (Poker.Table.Bet - player.Bet) ) == true)
@@ -109,6 +109,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 
         Poker.Table.Pot += moveBet;
         Poker.Table.Bet = moveBet;
+
         player.LastMove = MoveType.Bet;
     }
 
@@ -140,21 +141,17 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 
     public void moveRaise(PlayerModel player, int moveBet)
     {
-        player.Chips -= moveBet;
+        var callChips = Poker.Table.Bet - player.Bet;
+        var raiseChips = Poker.Table.Bet + moveBet;
 
-        if(player.Bet == 0)
-            player.Bet = moveBet;
-        else
-            player.Bet += moveBet;
+        player.Chips -= callChips + moveBet;
 
-        if(Poker.Table.Bet == 0)
-            Poker.Table.Bet = moveBet;
-        else
-            Poker.Table.Bet += moveBet;
+        player.Bet = raiseChips;
+        Poker.Table.Bet = raiseChips;
 
-        Poker.Table.Pot += moveBet;
+        Poker.Table.Pot += callChips + moveBet;
 
-        player.LastMove = MoveType.Call;
+        player.LastMove = MoveType.Raise;
     }
 
     public ClientTableModel getClientTable()
@@ -346,14 +343,17 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         if(Poker.Table.GameState == GameState.River)
             return false;
 
-        boolean nextGameStage = isAllPlayersChecked();
+        boolean nextGameStage  = false;
 
-        if (nextGameStage)
+        if(Poker.Table.PlacePlayerMap.size() < 3)
+            nextGameStage = areAllPlayersChecked() || areAllPlayersCalled() || areAllPlayersRaised() || areAllPlayersCalledAfterSmallBlind();
+        else
+            nextGameStage = areAllPlayersChecked() || areAllPlayersCalled()  || areAllPlayersRaised() || areAllPlayersCalledAfterBigBlind();
+
+        if (nextGameStage == true)
             return true;
 
-        nextGameStage = isAllPlayersCalled();
-
-        return nextGameStage;
+        return false;
     }
 
     private void setFirstTurn(Role role)
@@ -438,33 +438,6 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         return false;
     }
 
-    private boolean removePlayerFromPlacePlayerMap(ClientSocket clientSocket)
-    {
-        var playersFromPlaces = Poker.Table.PlacePlayerMap.entrySet();
-        var playerToRemovePlaceId = 0;
-        PlayerModel playerToRemove = null;
-
-        for(var placePlayer : playersFromPlaces)
-        {
-            var playerSoket = placePlayer.getValue().Socket;
-
-            if (playerSoket == clientSocket)
-            {
-                playerToRemovePlaceId = placePlayer.getKey();
-                playerToRemove = placePlayer.getValue();
-                break;
-            }
-        }
-
-        if(playerToRemove == null)
-            return false;
-
-
-        playerToRemove.Disconnected = true;
-
-        return true;
-    }
-
     private void removeDisconnectedPlayers()
     {
         var playersFromPlacePlayerMap = Poker.Table.PlacePlayerMap.entrySet();
@@ -527,14 +500,13 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         Poker.Table.Bet = 0;
     }
 
-    private boolean isAllPlayersChecked()
+    private boolean areAllPlayersChecked()
     {
         var players = Poker.Table.PlacePlayerMap.values();
         var nextGameStage = true;
 
         for (var player : players)
         {
-            // IF SOMEONE CALLED AFTER BIG BLIND BET
             if (player.LastMove == MoveType.Check || player.LastMove == MoveType.Fold) ;
             else nextGameStage = false;
         }
@@ -542,16 +514,93 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         return nextGameStage;
     }
 
-    private boolean isAllPlayersCalled()
+    private boolean areAllPlayersCalledAfterBigBlind()
     {
         var players = Poker.Table.PlacePlayerMap.values();
         var nextGameStage = true;
+        var bigBlind = getPlayer(Role.BigBlind);
 
-        // IF SOMEONE CALLED AFTER BIG BLIND BET
         for (var player : players)
         {
-            if (player.LastMove == MoveType.Call ||  player.LastMove == MoveType.Fold) ;
-            else nextGameStage = false;
+            if( (player.Role == Role.BigBlind && bigBlind.LastMove == MoveType.Check) )
+                continue;
+
+            if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) )
+                continue;
+
+            nextGameStage = false;
+        }
+
+        return nextGameStage;
+    }
+
+    private boolean areAllPlayersCalledAfterSmallBlind()
+    {
+        var players = Poker.Table.PlacePlayerMap.values();
+        var nextGameStage = true;
+        var smallBlind = getPlayer(Role.SmallBlind);
+
+        for (var player : players)
+        {
+            if( (player.Role == Role.SmallBlind && (smallBlind.LastMove == MoveType.Check)) )
+                continue;
+
+            if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) )
+                continue;
+
+            nextGameStage = false;
+        }
+
+        return nextGameStage;
+    }
+
+    private boolean areAllPlayersCalled()
+    {
+        var players = Poker.Table.PlacePlayerMap.values();
+        var nextGameStage = true;
+        var betCounts = 0;
+
+        for (var player : players)
+        {
+
+            if( (player.LastMove == MoveType.Bet) && betCounts == 0)
+            {
+                betCounts++;
+                continue;
+            }
+            else if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) )
+                continue;
+
+            nextGameStage = false;
+        }
+
+        return nextGameStage;
+    }
+
+    private boolean areAllPlayersRaised()
+    {
+        var players = Poker.Table.PlacePlayerMap.values();
+        var nextGameStage = true;
+        var callsCount = 0;
+        var raiseCount = 0;
+
+        for (var player : players)
+        {
+
+            if( (player.LastMove == MoveType.Raise) && raiseCount < 1)
+            {
+                raiseCount++;
+                continue;
+            }
+            else if( (player.LastMove == MoveType.Call) && (callsCount < Poker.Table.PlacePlayerMap.size()) )
+            {
+                callsCount++;
+                continue;
+            }
+            else if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) )
+                continue;
+
+            nextGameStage = false;
         }
 
         return nextGameStage;
@@ -562,7 +611,12 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         if(getFoldWinner() != null)
             return true;
 
-        var areAllPlayersEndMoves = isAllPlayersCalled() || isAllPlayersChecked();
+        var areAllPlayersEndMoves = false;
+
+        if(Poker.Table.PlacePlayerMap.size() < 3)
+            areAllPlayersEndMoves = areAllPlayersChecked() || areAllPlayersCalled() || areAllPlayersRaised() || areAllPlayersCalledAfterSmallBlind();
+        else
+            areAllPlayersEndMoves = areAllPlayersChecked() || areAllPlayersCalled()  || areAllPlayersRaised() || areAllPlayersCalledAfterBigBlind();
 
         if(Poker.Table.GameState == GameState.River && areAllPlayersEndMoves == true)
             return true;
@@ -966,7 +1020,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
                 move(new PlayerModel(), MoveType.Check, 0);
             }
             else
-                move(player, MoveType.Check, 0);
+                move(player, MoveType.Fold, 0);
                 //move(player, MoveType.Fold, 0);
         }
     }
