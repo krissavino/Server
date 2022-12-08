@@ -500,11 +500,14 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
     private void smallBlindFirstBet()
     {
         var playerSmallBlind = getPlayer(Role.SmallBlind);
+        var playerBigBlind = getPlayer(Role.BigBlind);
 
         if(playerSmallBlind == null)
             return;
 
         move(playerSmallBlind, MoveType.Bet, 5);
+        if(playerBigBlind != null)
+            move(playerBigBlind, MoveType.Bet, 10);
     }
 
     private void changeGameState()
@@ -547,7 +550,6 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         var players = Poker.Table.PlacePlayerMap.values();
         var nextGameStage = true;
 
-        // IF SOMEONE CALLED AFTER BIG BLIND BET
         for (var player : players)
         {
             if (player.LastMove == MoveType.Call ||  player.LastMove == MoveType.Fold) ;
@@ -963,11 +965,12 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             if (player == null)
             {
                 System.out.println("Игрок, который должен был ходить, вышел из игры");
-                move(new PlayerModel(), MoveType.Check, 0);
+                move(new PlayerModel(), MoveType.Fold, 0);
             }
-            else
-                move(player, MoveType.Check, 0);
-                //move(player, MoveType.Fold, 0);
+            else {
+                move(player, MoveType.Fold, 0);
+                //move(player, MoveType.Check, 0);
+            }
         }
     }
 }
