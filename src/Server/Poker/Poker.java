@@ -5,6 +5,8 @@ import Server.Commands.Interfaces.ICommand;
 import Server.Commands.RegisterPokerPlayer;
 import Server.Commands.UpdateInfo;
 import Server.Poker.Cards.Cards;
+import Server.Poker.Cards.Enums.CardColor;
+import Server.Poker.Cards.Enums.CardName;
 import Server.Poker.Cards.Models.CardModel;
 import Server.Poker.Enums.GameState;
 import Server.Poker.Enums.LobbyState;
@@ -702,9 +704,240 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         if(winner != null)
             return winner;
 
+        checkForCombinationWinner();
+
         var winners = getWinnersByScore();
         winner = winners.get(0);
         return winner;
+    }
+
+    public void checkForCombinationWinner()
+    {
+        var kickers = new HashMap<PlayerModel, Integer>();
+        var players = Poker.Table.PlacePlayerMap.values();
+
+        for(var player : players)
+        {
+            //high card
+            if(player.Cards.get(0).GetName().ordinal() >= player.Cards.get(1).GetName().ordinal())
+                player.Score = (player.Cards.get(0).GetName().ordinal());
+            else
+                player.Score = (player.Cards.get(1).GetName().ordinal());
+
+            //pairs
+            int pairCombinationOrdinal = 0;
+            int pairCombinations = 0;
+
+            var cardName = CardName.Card_2;
+            var cardsOnTable = Poker.Table.CardsOnTable;
+            ArrayList<CardName> pairsCombinationCheck = new ArrayList<CardName>();
+            pairsCombinationCheck.add(player.Cards.get(0).GetName());
+            pairsCombinationCheck.add(player.Cards.get(1).GetName());
+
+            for(var c : cardsOnTable)
+                pairsCombinationCheck.add(c.GetName());
+
+            for(int i = 0; i < pairsCombinationCheck.size(); i++)
+                for(int j = 0; j< pairsCombinationCheck.size(); j++)
+                {
+                    if(i != j)
+                    {
+                        if(pairsCombinationCheck.get(i) == pairsCombinationCheck.get(j))
+                        {
+                            pairCombinations++;
+
+                            if(cardName.ordinal() < pairsCombinationCheck.get(i).ordinal())
+                            {
+                                cardName = pairsCombinationCheck.get(i);
+                                //FIND KICKER
+                                if(player.Cards.get(0).GetName() == cardName)
+                                    kickers.put(player, player.Cards.get(1).GetName().ordinal());
+                                if(player.Cards.get(1).GetName() == cardName)
+                                    kickers.put(player, player.Cards.get(0).GetName().ordinal());
+
+                            }
+                        }
+                    }
+                }
+
+            if(pairCombinations == 1)
+                player.Score = (13 + cardName.ordinal());
+            if(pairCombinations > 1)
+                player.Score = (26 + cardName.ordinal());
+            pairCombinationOrdinal = cardName.ordinal();
+
+            //set
+            int setCombinations = 0;
+
+            CardName setCombinationCardName = CardName.Card_2;
+
+            for(int j = 0; j < 5; j++)
+            {
+                cardName = cardsOnTable.get(j).GetName();
+                int counter = 0;
+                for(int i = 0; i < 5; i++)
+                    if(cardName == cardsOnTable.get(i).GetName())
+                        counter++;
+
+                if(player.Cards.get(0).GetName() == cardName)
+                    counter++;
+                if(player.Cards.get(1).GetName() == cardName)
+                    counter++;
+
+                if(counter == 3)
+                {
+                    setCombinations++;
+                    if(cardName.ordinal() > setCombinationCardName.ordinal())
+                    {
+                        setCombinationCardName = cardName;
+                        //FIND KICKER
+                        if(player.Cards.get(0).GetName() == setCombinationCardName)
+                            kickers.put(player, player.Cards.get(1).GetName().ordinal());
+                        if(player.Cards.get(1).GetName() == setCombinationCardName)
+                            kickers.put(player, player.Cards.get(0).GetName().ordinal());
+                    }
+                }
+            }
+
+            if(setCombinations > 0)
+                player.Score = (39 + setCombinationCardName.ordinal());
+
+            //set
+            //street
+            Collections.sort(pairsCombinationCheck);
+            int counter = 1;
+            int maxCounter = 1;
+            int lastStreetOrdinal = 0;
+            ArrayList<CardName> streetCombination = new ArrayList<CardName>();
+            for(int i = 1; i < pairsCombinationCheck.size(); i++)
+            {
+                if (pairsCombinationCheck.get(i).ordinal() - pairsCombinationCheck.get(i - 1).ordinal() <= 1)
+                {
+                    if(pairsCombinationCheck.get(i).ordinal() - pairsCombinationCheck.get(i - 1).ordinal() == 1)
+                        counter++;
+
+                    lastStreetOrdinal = pairsCombinationCheck.get(i).ordinal();
+
+                    if(maxCounter < counter)
+                        maxCounter = counter;
+                }
+                else
+                {
+                    counter = 0;
+                    streetCombination.clear();
+                }
+            }
+            if(maxCounter > 4)
+            {
+                for(var card : player.Cards)
+                    if(card.GetName().ordinal() == lastStreetOrdinal) {
+                        //FIND KICKER
+                        kickers.put(player, card.GetName().ordinal());
+                    }
+                player.Score = (52 + lastStreetOrdinal);
+            }
+            //street
+            //flush
+            ArrayList<CardColor> flushCombinationCheck = new ArrayList<CardColor>();
+            flushCombinationCheck.add(player.Cards.get(0).GetColor());
+            flushCombinationCheck.add(player.Cards.get(1).GetColor());
+
+            for(var card : cardsOnTable)
+                flushCombinationCheck.add(card.GetColor());
+
+            Collections.sort(flushCombinationCheck);
+            counter = 1;
+            maxCounter = 1;
+            CardColor lastFlushColor = CardColor.Clubs;
+
+            for(int i = 1; i < pairsCombinationCheck.size(); i++)
+            {
+                if (flushCombinationCheck.get(i) == flushCombinationCheck.get(i - 1))
+                {
+                    counter++;
+                    lastFlushColor = flushCombinationCheck.get(i);
+
+                    if(maxCounter < counter)
+                        maxCounter = counter;
+                }
+                else
+                    counter = 0;
+            }
+
+            if(maxCounter > 4)
+            {
+                int lastFlushOrdinal = 0;
+
+                for(var card : player.Cards)
+                    if(card.GetColor() == lastFlushColor)
+                    {
+                        if(lastFlushOrdinal <= card.GetName().ordinal())
+                        {
+                            lastFlushOrdinal = card.GetName().ordinal();
+                            //FIND KICKER
+                            kickers.put(player, card.GetName().ordinal());
+                        }
+                    }
+                player.Score = (65 + lastFlushOrdinal);
+            }
+
+            //flush
+            //fullhouse
+            if(pairCombinations > 0 && setCombinations > 0)
+            {
+                player.Score = (78 + setCombinationCardName.ordinal());
+                //FIND KICKER
+                for(var card : player.Cards)
+                    if(card.GetName().ordinal() == setCombinationCardName.ordinal())
+                        kickers.put(player, card.GetName().ordinal());
+            }
+
+            //fullhouse
+            //kare
+            counter = 1;
+            Collections.sort(pairsCombinationCheck);
+            cardName = CardName.Card_2;
+            maxCounter = 1;
+            for(int i = 1; i < pairsCombinationCheck.size(); i++)
+            {
+                if(pairsCombinationCheck.get(i) == pairsCombinationCheck.get(i-1))
+                {
+                    counter++;
+
+                    if(cardName.ordinal() < pairsCombinationCheck.get(i).ordinal())
+                        cardName = pairsCombinationCheck.get(i);
+                    if(maxCounter < counter)
+                        maxCounter = counter;
+
+                }
+                else
+                    counter = 1;
+            }
+
+            if(maxCounter > 3)
+            {
+                player.Score = (91 + cardName.ordinal());
+
+                //FIND KICKER
+                if(player.Cards.get(0).GetName().ordinal() == cardName.ordinal())
+                    kickers.put(player, player.Cards.get(1).GetName().ordinal());
+                if(player.Cards.get(1).GetName().ordinal() == cardName.ordinal())
+                    kickers.put(player, player.Cards.get(0).GetName().ordinal());
+            }
+            //kare
+        }
+
+        //int maxScore = 0;
+        //var winner = new PlayerModel(0);
+        //for(Player p : players) {
+        //    if(p.score >= maxScore) {
+        //        maxScore = p.score;
+        //        winner = p;
+        //    }
+        //}
+        //winnerIndex = winner.getPlace();
+        //ArrayList<Player> sameWinners = findSameWinners(winner,kickers);
+        //System.out.println("First winner: " + winnerIndex + " Winners count: " + sameWinners.size());
     }
 
     private ArrayList<PlayerModel> getWinnersByScore()
