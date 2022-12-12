@@ -13,6 +13,8 @@ public final class TableModel
     public int PlayerIndexTurn = 0;
     public int TimerStartTime = 0;
     public PlayerModel Winner = null;
+    public ArrayList<PlayerModel> Winners = null;
+    public ArrayList<CardModel> WinnerCombination = null;
     public GameState GameState = Server.Poker.Enums.GameState.Preflop;
     public LobbyState LobbyState = Server.Poker.Enums.LobbyState.Waiting;
     public ArrayList<CardModel> CardsOnTable = new ArrayList();

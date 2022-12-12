@@ -7,5 +7,6 @@ public enum MoveType
     Fold,
     Check,
     Raise,
-    Call
+    Call,
+    AllIn
 }

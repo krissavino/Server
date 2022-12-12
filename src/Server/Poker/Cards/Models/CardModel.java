@@ -30,4 +30,12 @@ public class CardModel implements ICard
     public boolean isOpened() {
         return Opened;
     }
+    @Override
+    public boolean equals(Object obj) {
+        super.equals(obj);
+        if(this.Color == ((CardModel)obj).Color && this.Name == ((CardModel)obj).Name)
+            return true;
+        else
+            return false;
+    }
 }

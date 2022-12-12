@@ -11,8 +11,8 @@ public enum CardName
     Card_8,
     Card_9,
     Card_10,
-    Card_K,
+    Card_J,
     Card_Q,
-    Card_A,
-    Card_J
+    Card_K,
+    Card_A
 }

@@ -34,6 +34,8 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             return false;
 
         Poker.Table.Winner = null;
+        Poker.Table.Winners = null;
+        Poker.Table.WinnerCombination = null;
         Poker.Table.Pot = 0;
         Poker.Table.Bet = 0;
         Poker.Table.GameState = GameState.Preflop;
@@ -61,10 +63,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             return;
 
         if(moveType == MoveType.Bet)
-            if(validatePlayerBet(player, moveBet) == true)
-                moveBet(player, moveBet);
-            else
-                moveCheck(player);
+            moveBet(player, moveBet);
 
         if(moveType == MoveType.Fold)
             moveFold(player);
@@ -79,12 +78,9 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             moveRaise(player, moveBet);
 
         if(moveType == MoveType.Call)
-            if(validatePlayerBet(player, (Poker.Table.Bet - player.Bet) ) == true)
-                moveCall(player);
-            else
-                moveCheck(player);
+            moveCall(player);
 
-        printPlayerMove(player.NickName, player.LastMove);
+        printPlayerMove(player.NickName, player.LastMove, player.Bet, Poker.Table.Bet);
 
         if(checkForEndGame() == true)
         {
@@ -102,8 +98,17 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 
     public void moveBet(PlayerModel player, int moveBet)
     {
-        player.Chips -= moveBet;
+        if(moveBet == (Poker.Table.Bet - player.Bet)) {
+            moveCall(player);
+            return;
+        }
 
+        if(moveBet > player.Chips) {
+            moveBet = player.Chips;
+            player.Chips = 0;
+        } else {
+            player.Chips -= moveBet;
+        }
         if(player.Bet == 0)
             player.Bet = moveBet;
         else
@@ -113,6 +118,8 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         Poker.Table.Bet = moveBet;
 
         player.LastMove = MoveType.Bet;
+        if(player.Chips == 0)
+            player.LastMove = MoveType.AllIn;
     }
 
     public void moveFold(PlayerModel player)
@@ -129,6 +136,9 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
     public void moveCall(PlayerModel player)
     {
         var bet = Poker.Table.Bet - player.Bet;
+        if(validatePlayerBet(player, (Poker.Table.Bet - player.Bet) ) == false) {
+            bet = player.Chips;
+        }
 
         if(player.Bet == 0)
             player.Bet = bet;
@@ -139,21 +149,35 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         Poker.Table.Pot += bet;
 
         player.LastMove = MoveType.Call;
+        if(player.Chips == 0)
+            player.LastMove = MoveType.AllIn;
+
     }
 
     public void moveRaise(PlayerModel player, int moveBet)
     {
         var callChips = Poker.Table.Bet - player.Bet;
-        var raiseChips = Poker.Table.Bet + moveBet;
+        var raiseChips = callChips + moveBet;
 
-        player.Chips -= callChips + moveBet;
-
-        player.Bet = raiseChips;
-        Poker.Table.Bet = raiseChips;
-
-        Poker.Table.Pot += callChips + moveBet;
+        if(callChips > player.Chips || callChips >= moveBet) {
+            moveCall(player);
+            return;
+        }
+        if(raiseChips > player.Chips) {
+            player.Bet += player.Chips;
+            Poker.Table.Pot += player.Chips;
+            Poker.Table.Bet = player.Bet;
+            player.Chips = 0;
+        } else {
+            Poker.Table.Bet = raiseChips;
+            Poker.Table.Pot += moveBet;
+            player.Chips -= callChips + moveBet;
+            player.Bet = raiseChips;
+        }
 
         player.LastMove = MoveType.Raise;
+        if(player.Chips == 0)
+            player.LastMove = MoveType.AllIn;
     }
 
     public ClientTableModel getClientTable()
@@ -164,6 +188,8 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         clientTable.PlayerIndexTurn = Poker.Table.PlayerIndexTurn      ;
         clientTable.TimerStartTime  = Poker.Table.TimerStartTime       ;
         clientTable.Winner          = Poker.Table.Winner               ;
+        clientTable.Winners          = Poker.Table.Winners             ;
+        clientTable.WinnerCombination = Poker.Table.WinnerCombination  ;
         clientTable.GameState       = Poker.Table.GameState            ;
         clientTable.LobbyState      = Poker.Table.LobbyState           ;
         clientTable.CardsOnTable    = Poker.Table.CardsOnTable         ;
@@ -279,9 +305,9 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         playerAuthorized(player.NickName);
     }
 
-    private void printPlayerMove(String nickName, MoveType moveType)
+    private void printPlayerMove(String nickName, MoveType moveType, int bet, int table)
     {
-        var text = String.format("Игрок <%s> сделал ход: %s", nickName, moveType);
+        var text = String.format("Игрок <%s> сделал ход: %s %s, table: %s", nickName, moveType, bet, table);
         System.out.println(text);
     }
 
@@ -296,6 +322,8 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         if(areMovesEnded() == true)
             return true;
 
+        if(arePlayersAllIn() == true)
+            return true;
         return false;
     }
 
@@ -308,7 +336,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         {
             var player = Poker.Table.PlacePlayerMap.get(nextTurnId);
 
-            if (player.LastMove != MoveType.Fold)
+            if (player.LastMove != MoveType.Fold && player.LastMove != MoveType.AllIn)
                 break;
 
             nextTurnId = (nextTurnId + 1) % Poker.Table.PlacePlayerMap.size();
@@ -382,7 +410,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 
         for(var player : players)
         {
-            if(player.LastMove == MoveType.Fold)
+            if(player.LastMove == MoveType.Fold || player.LastMove == MoveType.AllIn)
                 if(resetFolds == false)
                     continue;
 
@@ -407,6 +435,8 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
                 continue;
 
             playerFromPlace.Role = Role.values()[roleId];
+            if(playerFromPlace.Chips <= 0)
+                playerFromPlace.Chips = 100;
         }
     }
 
@@ -509,7 +539,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 
         for (var player : players)
         {
-            if (player.LastMove == MoveType.Check || player.LastMove == MoveType.Fold) ;
+            if (player.LastMove == MoveType.Check || player.LastMove == MoveType.Fold || player.LastMove == MoveType.AllIn) ;
             else nextGameStage = false;
         }
 
@@ -527,7 +557,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             if( (player.Role == Role.BigBlind && bigBlind.LastMove == MoveType.Check) )
                 continue;
 
-            if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) )
+            if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold)  || (player.LastMove == MoveType.AllIn) )
                 continue;
 
             nextGameStage = false;
@@ -547,7 +577,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             if( (player.Role == Role.SmallBlind && (smallBlind.LastMove == MoveType.Check)) )
                 continue;
 
-            if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) )
+            if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) || (player.LastMove == MoveType.AllIn)  )
                 continue;
 
             nextGameStage = false;
@@ -570,7 +600,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
                 betCounts++;
                 continue;
             }
-            else if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) )
+            else if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) || (player.LastMove == MoveType.AllIn)  )
                 continue;
 
             nextGameStage = false;
@@ -599,7 +629,7 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
                 callsCount++;
                 continue;
             }
-            else if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) )
+            else if( (player.LastMove == MoveType.Call) || (player.LastMove == MoveType.Fold) || (player.LastMove == MoveType.AllIn)  )
                 continue;
 
             nextGameStage = false;
@@ -626,6 +656,16 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         return false;
     }
 
+    private boolean arePlayersAllIn() {
+        var players = Poker.Table.PlacePlayerMap.values();
+        boolean is = true;
+        for(var player : players) {
+            if(player.LastMove == MoveType.AllIn || player.LastMove == MoveType.Fold);
+            else is = false;
+        }
+        return is;
+    }
+
     private void endGame()
     {
         Poker.GamesFinished += 1;
@@ -635,6 +675,9 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 
         removeDisconnectedPlayers();
         TurnPlayersHand();
+        for (int counter = 0; counter < 5; counter++)
+            Poker.Table.CardsOnTable.get(counter).setOpened(true);
+
 
         var winner = getWinner();
         Poker.Table.Winner = winner;
@@ -645,9 +688,24 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             winnerText = "Победитель: игрок покинул игру";
         else
         {
-            var chips = Poker.Table.Pot;
-            winner.Chips += chips;
-            winnerText = String.format("Победитель: <%s>, получает выигрышь %s фишек", winner.NickName, chips);
+            var winners = findSameWinners(winner);
+            System.out.println("WINNERS: ");
+            System.out.println(winners.size());
+            for(var w : winners) {
+                System.out.println(w.NickName);
+            }
+            if(winners.size() > 1) {
+                var chips = (int)(Poker.Table.Pot/winners.size());
+                for(var w : winners) {
+                    w.Chips += chips;
+                    winnerText = String.format("Один из победителей: <%s>, получает выигрышь %s фишек", winner.NickName, chips);
+                }
+                Poker.Table.Winners = winners;
+            } else {
+                var chips = Poker.Table.Pot;
+                winner.Chips += chips;
+                winnerText = String.format("Победитель: <%s>, получает выигрышь %s фишек", winner.NickName, chips);
+            }
         }
 
         System.out.println(winnerText);
@@ -699,254 +757,239 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             return winner;
         }
 
+        setPlayersScore();
         winner = getFoldWinner();
 
         if(winner != null)
             return winner;
 
-        checkForCombinationWinner();
 
         var winners = getWinnersByScore();
         winner = winners.get(0);
         return winner;
     }
-
-    public void checkForCombinationWinner()
-    {
-        var kickers = new HashMap<PlayerModel, Integer>();
-        var players = Poker.Table.PlacePlayerMap.values();
-
-        for(var player : players)
-        {
-            //high card
-            if(player.Cards.get(0).GetName().ordinal() >= player.Cards.get(1).GetName().ordinal())
-                player.Score = (player.Cards.get(0).GetName().ordinal());
-            else
-                player.Score = (player.Cards.get(1).GetName().ordinal());
-
-            //pairs
-            int pairCombinationOrdinal = 0;
-            int pairCombinations = 0;
-
-            var cardName = CardName.Card_2;
-            var cardsOnTable = Poker.Table.CardsOnTable;
-            ArrayList<CardName> pairsCombinationCheck = new ArrayList<CardName>();
-            pairsCombinationCheck.add(player.Cards.get(0).GetName());
-            pairsCombinationCheck.add(player.Cards.get(1).GetName());
-
-            for(var c : cardsOnTable)
-                pairsCombinationCheck.add(c.GetName());
-
-            for(int i = 0; i < pairsCombinationCheck.size(); i++)
-                for(int j = 0; j< pairsCombinationCheck.size(); j++)
-                {
-                    if(i != j)
-                    {
-                        if(pairsCombinationCheck.get(i) == pairsCombinationCheck.get(j))
-                        {
-                            pairCombinations++;
-
-                            if(cardName.ordinal() < pairsCombinationCheck.get(i).ordinal())
-                            {
-                                cardName = pairsCombinationCheck.get(i);
-                                //FIND KICKER
-                                if(player.Cards.get(0).GetName() == cardName)
-                                    kickers.put(player, player.Cards.get(1).GetName().ordinal());
-                                if(player.Cards.get(1).GetName() == cardName)
-                                    kickers.put(player, player.Cards.get(0).GetName().ordinal());
-
-                            }
-                        }
-                    }
-                }
-
-            if(pairCombinations == 1)
-                player.Score = (13 + cardName.ordinal());
-            if(pairCombinations > 1)
-                player.Score = (26 + cardName.ordinal());
-            pairCombinationOrdinal = cardName.ordinal();
-
-            //set
-            int setCombinations = 0;
-
-            CardName setCombinationCardName = CardName.Card_2;
-
-            for(int j = 0; j < 5; j++)
-            {
-                cardName = cardsOnTable.get(j).GetName();
-                int counter = 0;
-                for(int i = 0; i < 5; i++)
-                    if(cardName == cardsOnTable.get(i).GetName())
-                        counter++;
-
-                if(player.Cards.get(0).GetName() == cardName)
-                    counter++;
-                if(player.Cards.get(1).GetName() == cardName)
-                    counter++;
-
-                if(counter == 3)
-                {
-                    setCombinations++;
-                    if(cardName.ordinal() > setCombinationCardName.ordinal())
-                    {
-                        setCombinationCardName = cardName;
-                        //FIND KICKER
-                        if(player.Cards.get(0).GetName() == setCombinationCardName)
-                            kickers.put(player, player.Cards.get(1).GetName().ordinal());
-                        if(player.Cards.get(1).GetName() == setCombinationCardName)
-                            kickers.put(player, player.Cards.get(0).GetName().ordinal());
-                    }
-                }
-            }
-
-            if(setCombinations > 0)
-                player.Score = (39 + setCombinationCardName.ordinal());
-
-            //set
-            //street
-            Collections.sort(pairsCombinationCheck);
-            int counter = 1;
-            int maxCounter = 1;
-            int lastStreetOrdinal = 0;
-            ArrayList<CardName> streetCombination = new ArrayList<CardName>();
-            for(int i = 1; i < pairsCombinationCheck.size(); i++)
-            {
-                if (pairsCombinationCheck.get(i).ordinal() - pairsCombinationCheck.get(i - 1).ordinal() <= 1)
-                {
-                    if(pairsCombinationCheck.get(i).ordinal() - pairsCombinationCheck.get(i - 1).ordinal() == 1)
-                        counter++;
-
-                    lastStreetOrdinal = pairsCombinationCheck.get(i).ordinal();
-
-                    if(maxCounter < counter)
-                        maxCounter = counter;
-                }
-                else
-                {
-                    counter = 0;
-                    streetCombination.clear();
-                }
-            }
-            if(maxCounter > 4)
-            {
-                for(var card : player.Cards)
-                    if(card.GetName().ordinal() == lastStreetOrdinal) {
-                        //FIND KICKER
-                        kickers.put(player, card.GetName().ordinal());
-                    }
-                player.Score = (52 + lastStreetOrdinal);
-            }
-            //street
-            //flush
-            ArrayList<CardColor> flushCombinationCheck = new ArrayList<CardColor>();
-            flushCombinationCheck.add(player.Cards.get(0).GetColor());
-            flushCombinationCheck.add(player.Cards.get(1).GetColor());
-
-            for(var card : cardsOnTable)
-                flushCombinationCheck.add(card.GetColor());
-
-            Collections.sort(flushCombinationCheck);
-            counter = 1;
-            maxCounter = 1;
-            CardColor lastFlushColor = CardColor.Clubs;
-
-            for(int i = 1; i < pairsCombinationCheck.size(); i++)
-            {
-                if (flushCombinationCheck.get(i) == flushCombinationCheck.get(i - 1))
-                {
-                    counter++;
-                    lastFlushColor = flushCombinationCheck.get(i);
-
-                    if(maxCounter < counter)
-                        maxCounter = counter;
-                }
-                else
-                    counter = 0;
-            }
-
-            if(maxCounter > 4)
-            {
-                int lastFlushOrdinal = 0;
-
-                for(var card : player.Cards)
-                    if(card.GetColor() == lastFlushColor)
-                    {
-                        if(lastFlushOrdinal <= card.GetName().ordinal())
-                        {
-                            lastFlushOrdinal = card.GetName().ordinal();
-                            //FIND KICKER
-                            kickers.put(player, card.GetName().ordinal());
-                        }
-                    }
-                player.Score = (65 + lastFlushOrdinal);
-            }
-
-            //flush
-            //fullhouse
-            if(pairCombinations > 0 && setCombinations > 0)
-            {
-                player.Score = (78 + setCombinationCardName.ordinal());
-                //FIND KICKER
-                for(var card : player.Cards)
-                    if(card.GetName().ordinal() == setCombinationCardName.ordinal())
-                        kickers.put(player, card.GetName().ordinal());
-            }
-
-            //fullhouse
-            //kare
-            counter = 1;
-            Collections.sort(pairsCombinationCheck);
-            cardName = CardName.Card_2;
-            maxCounter = 1;
-            for(int i = 1; i < pairsCombinationCheck.size(); i++)
-            {
-                if(pairsCombinationCheck.get(i) == pairsCombinationCheck.get(i-1))
-                {
-                    counter++;
-
-                    if(cardName.ordinal() < pairsCombinationCheck.get(i).ordinal())
-                        cardName = pairsCombinationCheck.get(i);
-                    if(maxCounter < counter)
-                        maxCounter = counter;
-
-                }
-                else
-                    counter = 1;
-            }
-
-            if(maxCounter > 3)
-            {
-                player.Score = (91 + cardName.ordinal());
-
-                //FIND KICKER
-                if(player.Cards.get(0).GetName().ordinal() == cardName.ordinal())
-                    kickers.put(player, player.Cards.get(1).GetName().ordinal());
-                if(player.Cards.get(1).GetName().ordinal() == cardName.ordinal())
-                    kickers.put(player, player.Cards.get(0).GetName().ordinal());
-            }
-            //kare
+    public ArrayList<CardModel> getHighCard(ArrayList<CardModel> cards) {
+        CardModel highCard = cards.get(0);
+        for(var card : cards) {
+            if(card.Name.ordinal() > highCard.Name.ordinal())
+                highCard = card;
         }
+        var res = new ArrayList<CardModel>();
+        res.add(highCard);
+        return res;
+    }
 
-        //int maxScore = 0;
-        //var winner = new PlayerModel(0);
-        //for(Player p : players) {
-        //    if(p.score >= maxScore) {
-        //        maxScore = p.score;
-        //        winner = p;
-        //    }
-        //}
-        //winnerIndex = winner.getPlace();
-        //ArrayList<Player> sameWinners = findSameWinners(winner,kickers);
-        //System.out.println("First winner: " + winnerIndex + " Winners count: " + sameWinners.size());
+    public ArrayList<CardModel> getSetCards(ArrayList<CardModel> cards, int count) {
+        var cardCounts = new ArrayList<Integer>();
+        for(int i = 0; i < 13; i++) {
+            cardCounts.add(0);
+        }
+        for(CardModel card : cards) {
+            int ordinal = card.GetName().ordinal();
+            if(cardCounts.get(ordinal) == null)
+                cardCounts.set(ordinal, 0);
+            cardCounts.set(ordinal, cardCounts.get(ordinal)+1);
+        }
+        int maxPairOrdinal = -1;
+        for(int i = 0; i < 13; i++) {
+            if (cardCounts.get(i) == count)
+                maxPairOrdinal = i;
+        }
+        var res = new ArrayList<CardModel>();
+        if(maxPairOrdinal > -1) {
+            for(var card : cards) {
+                if(maxPairOrdinal == card.GetName().ordinal()) {
+                    res.add(card);
+                }
+            }
+        }
+        if(res.size() > 0)
+            return res;
+        else
+            return null;
+    }
+    public ArrayList<CardModel> getTwoPairsCards(ArrayList<CardModel> cards) {
+        ArrayList<CardModel> cards2 = (ArrayList<CardModel>)cards.clone();
+        var res = getSetCards(cards2, 2);
+        if(res == null)
+            return null;
+        for(int i = 0; i < cards2.size(); i++) {
+            if(cards2.get(i).equals(res.get(0)))
+                cards2.remove(cards2.get(i));
+            if(cards2.get(i).equals(res.get(1)))
+                cards2.remove(cards2.get(i));
+        }
+        var res2 = getSetCards(cards2, 2);
+        if(res2 != null) {
+            for(var card : res) {
+                res2.add(card);
+            }
+            return res2;
+        }
+        return null;
+    }
+    public ArrayList<CardModel> getFullHouse(ArrayList<CardModel> cards) {
+        var pair = getSetCards(cards, 2);
+        var set = getSetCards(cards, 3);
+        if(pair != null && set != null) {
+            var res = new ArrayList<CardModel>();
+            for(var card : pair)
+                res.add(card);
+            for(var card : set)
+                res.add(card);
+            return res;
+        }
+        return null;
+    }
+
+    public ArrayList<CardModel> getStreet(ArrayList<CardModel> cards) {
+        var res = new ArrayList<CardModel>();
+        var cardCounts = new ArrayList<Integer>();
+        for(int i = 0; i < 13; i++) {
+            cardCounts.add(0);
+        }
+        for(CardModel card : cards) {
+            int ordinal = card.GetName().ordinal();
+            if(cardCounts.get(ordinal) == null)
+                cardCounts.set(ordinal, 0);
+            cardCounts.set(ordinal, cardCounts.get(ordinal)+1);
+        }
+        int count = 0;
+        int maxCount = 0;
+        int firstOrdinal = -1;
+        for(int i = 12; i >= 0; i--) {
+            if(cardCounts.get(i) > 0) {
+                count++;
+                if(count == 5) {
+                    firstOrdinal = i;
+                    break;
+                }
+                if(count > maxCount) {
+                    maxCount = count;
+                }
+            } else {
+                count = 0;
+            }
+        }
+        if(count == 4 && cardCounts.get(12) > 0) {
+            firstOrdinal = 12;
+        }
+        if(firstOrdinal >= 0) {
+            for(int i = 0; i < 5; i++) {
+                for (var card : cards) {
+                    if (card.GetName().ordinal() == ((firstOrdinal + i)%13))
+                        res.add(card);
+                }
+            }
+        }
+        if(res.size() > 0)
+            return res;
+        else
+            return null;
+    }
+    public ArrayList<CardModel> getSortedCards(ArrayList<CardModel> cards) {
+        var res = new ArrayList<CardModel>();
+        for(int i = 0; i < 13; i++)
+            for(var card : cards) {
+                if(card.GetName().ordinal() == i) {
+                    res.add(card);
+                }
+            }
+        if(res.size() > 0)
+            return res;
+        else
+            return null;
+    }
+    public ArrayList<CardModel> getFlush(ArrayList<CardModel> cards) {
+        var sortedCards = getSortedCards(cards);
+        var colorCounts = new ArrayList<Integer>();
+        for(int i = 0; i < 4; i++) {
+            colorCounts.add(0);
+        }
+        for(CardModel card : sortedCards) {
+            int ordinal = card.GetColor().ordinal();
+            colorCounts.set(ordinal, colorCounts.get(ordinal)+1);
+        }
+        var res = new ArrayList<CardModel>();
+        for(int i = 0; i < 4; i++) {
+            if(colorCounts.get(i) >= 5) {
+                for(var card : sortedCards) {
+                    if(card.GetColor().ordinal() == i) {
+                        res.add(card);
+                    }
+                }
+                return res;
+            }
+        }
+        return null;
+    }
+    public ArrayList<CardModel> getFlushStreet(ArrayList<CardModel> cards) {
+        var streetCards = getStreet(cards);
+        if(streetCards == null)
+            return null;
+        return getFlush(streetCards);
+    }
+
+    public void setPlayersScore() {
+        int maxScore = 0;
+        for(var player : Poker.Table.PlacePlayerMap.values()) {
+            if(player.LastMove == MoveType.Fold)
+                continue;
+            var playerCards = player.Cards;
+            var allCards = new ArrayList<CardModel>();
+            for (CardModel c : playerCards) {
+                allCards.add(c);
+            }
+            for (CardModel c : Poker.Table.CardsOnTable) {
+                allCards.add(c);
+            }
+            var combinations = new ArrayList<ArrayList<CardModel>>();
+            combinations.add(getHighCard(allCards));
+            combinations.add(getSetCards(allCards, 2));
+            combinations.add(getTwoPairsCards(allCards));
+            combinations.add(getSetCards(allCards, 3));
+            combinations.add(getStreet(allCards));
+            combinations.add(getFlush(allCards));
+            combinations.add(getFullHouse(allCards));
+            combinations.add(getSetCards(allCards, 4));
+            combinations.add(getFlushStreet(allCards));
+            player.Score = 0;
+            for (int i = combinations.size()-1; i >= 0; i--) {
+                System.out.println("Player " + player.NickName);
+                System.out.println("    Combination " + i + " " + combinations.get(i));
+                var cards = combinations.get(i);
+                if (cards == null)
+                    continue;
+                if (cards.size() == 0)
+                    continue;
+
+                var kicker = player.Cards.get(0);
+                if(player.Cards.get(1).GetName().ordinal() > kicker.GetName().ordinal())
+                    kicker = player.Cards.get(1);
+                for (var card : cards) {
+                    if (card.equals(player.Cards.get(1)))
+                        kicker = player.Cards.get(0);
+                    if (card.equals(player.Cards.get(0)))
+                        kicker = player.Cards.get(1);
+                }
+                player.Score = i * 10000 + cards.get(cards.size() - 1).GetName().ordinal() * 100 + kicker.GetName().ordinal();
+                System.out.println("    " + player.NickName + " " + player.Score);
+                if(player.Score > maxScore) {
+                    Poker.Table.WinnerCombination = cards;
+                    maxScore = player.Score;
+                }
+                break;
+            }
+        }
+        for (var card : Poker.Table.WinnerCombination) {
+            System.out.println(card.Name);
+        }
     }
 
     private ArrayList<PlayerModel> getWinnersByScore()
     {
-        countPlayersScore();
         var firstWinner = findFirstWinner();
         var winners = findSameWinners(firstWinner);
-
-        winners.add(firstWinner);
 
         return winners;
     }
@@ -1016,41 +1059,6 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         return null;
     }
 
-    private void countPlayersScore()
-    {
-        var players = Poker.Table.PlacePlayerMap.values();
-
-        for(var player : players)
-            if(player.LastMove != MoveType.Fold)
-                countPlayerScore(player);
-    }
-
-    private void countPlayerScore(PlayerModel player)
-    {
-        player.Score = 0;
-
-        //high card
-        if(player.Cards.get(0).Name.ordinal() >= player.Cards.get(1).Name.ordinal())
-            player.Score = player.Cards.get(0).Name.ordinal();
-        else
-            player.Score = player.Cards.get(1).Name.ordinal();
-        //high card
-            /*//pairs
-            int pairs = 0;
-            for(int i = 0; i < 5; i++)
-            {
-                if(p.hand.get(0).GetName().toString().equals(cardsOnTable.get(i).GetName().toString()))
-                    pairs++;
-                if(p.hand.get(1).GetName().toString().equals(cardsOnTable.get(i).GetName().toString()))
-                    pairs++;
-            }
-            if(p.hand.get(0).GetName().toString().equals(p.hand.get(1).GetName().toString())) pairs++;
-            if(pairs == 1)
-                p.setScore(15);
-            if(pairs > 1)
-                p.setScore(16);
-            //pairs*/
-    }
 
     private PlayerModel findFirstWinner()
     {
