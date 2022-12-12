@@ -19,7 +19,9 @@ import Server.Poker.Models.ClientTableModel;
 import Server.Poker.Models.PlayerModel;
 import Server.Poker.Models.PokerModel;
 import Server.ServerContainer;
+import org.apache.commons.io.output.TeeOutputStream;
 
+import java.io.*;
 import java.util.*;
 
 public final class Poker implements IQueue, IPokerMove, IPokerPlayers
@@ -27,9 +29,15 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
     private final PokerModel Poker = new PokerModel();
     private Timer GameTimer = new Timer();
     private Timer WaitingTimer = new Timer();
+    private ByteArrayOutputStream buffer;
 
     public boolean startGame()
     {
+        buffer = new ByteArrayOutputStream();
+        OutputStream teeStream = new TeeOutputStream(System.out, buffer);
+        // После этой строки любой вывод будет сохраняться в buffer
+        System.setOut(new PrintStream(teeStream));
+
         if(Poker.Table.LobbyState == LobbyState.Started)
             return false;
 
@@ -689,11 +697,6 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         else
         {
             var winners = findSameWinners(winner);
-            System.out.println("WINNERS: ");
-            System.out.println(winners.size());
-            for(var w : winners) {
-                System.out.println(w.NickName);
-            }
             if(winners.size() > 1) {
                 var chips = (int)(Poker.Table.Pot/winners.size());
                 for(var w : winners) {
@@ -713,6 +716,15 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
         restartGameTimer(Poker.RestartEndGameDelay);
 
         new UpdateInfo().sendToClient();
+
+        // Сохраняем buffer в файл
+        try(OutputStream fileStream = new FileOutputStream("console.txt")) {
+            buffer.writeTo(fileStream);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void TurnPlayersHand()
@@ -955,8 +967,6 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
             combinations.add(getFlushStreet(allCards));
             player.Score = 0;
             for (int i = combinations.size()-1; i >= 0; i--) {
-                System.out.println("Player " + player.NickName);
-                System.out.println("    Combination " + i + " " + combinations.get(i));
                 var cards = combinations.get(i);
                 if (cards == null)
                     continue;
@@ -973,16 +983,12 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
                         kicker = player.Cards.get(1);
                 }
                 player.Score = i * 10000 + cards.get(cards.size() - 1).GetName().ordinal() * 100 + kicker.GetName().ordinal();
-                System.out.println("    " + player.NickName + " " + player.Score);
                 if(player.Score > maxScore) {
                     Poker.Table.WinnerCombination = cards;
                     maxScore = player.Score;
                 }
                 break;
             }
-        }
-        for (var card : Poker.Table.WinnerCombination) {
-            System.out.println(card.Name);
         }
     }
 

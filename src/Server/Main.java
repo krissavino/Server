@@ -1,16 +1,19 @@
 package Server;
 
 import Net.LocalNetManager;
+import org.apache.commons.io.output.TeeOutputStream;
 
+import java.io.*;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Scanner;
-
 public class Main
 {
 
-    public static void main(String[] args)
-    {
+    public static void main(String[] args) throws IOException {
+
+
+
         System.out.println("Select ipv4 to listen to:");
 
         var ipv4Addresses = LocalNetManager.GetLocalInetAddresses();
@@ -22,6 +25,7 @@ public class Main
         var selectedInetAddress = ipv4Addresses.get(inputtedNumber);
 
         ServerContainer.getServer().start(selectedInetAddress);
+
     }
 
     private static void ShowIpv4Selections(ArrayList<InetAddress> localInetAddresses)
