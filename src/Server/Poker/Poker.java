@@ -33,10 +33,10 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 
     public boolean startGame()
     {
-        buffer = new ByteArrayOutputStream();
+        /*buffer = new ByteArrayOutputStream();
         OutputStream teeStream = new TeeOutputStream(System.out, buffer);
         // После этой строки любой вывод будет сохраняться в buffer
-        System.setOut(new PrintStream(teeStream));
+        System.setOut(new PrintStream(teeStream));*/
 
         if(Poker.Table.LobbyState == LobbyState.Started)
             return false;
@@ -717,14 +717,14 @@ public final class Poker implements IQueue, IPokerMove, IPokerPlayers
 
         new UpdateInfo().sendToClient();
 
-        // Сохраняем buffer в файл
+        /*// Сохраняем buffer в файл
         try(OutputStream fileStream = new FileOutputStream("console.txt")) {
             buffer.writeTo(fileStream);
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
+        }*/
     }
 
     private void TurnPlayersHand()
